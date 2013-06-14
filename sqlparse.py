@@ -64,13 +64,6 @@ statement = Optional(White().suppress()) + ( select | insert ) #| assign
 sql = OneOrMore(statement + eol) | ( statement + Optional(eol) )
 
 if __name__ == '__main__':
-    import sys, re
-    for line in sys.stdin:
-        if re.match('^INSERT', line):
-            print line[:80]
-            sql.parseString(line)
-    sys.exit(0)
-
     #
     # test cases
     #
