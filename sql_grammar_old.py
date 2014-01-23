@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Contains an old grammar that only worked with INSERT statements.
+# TODO: Move this into sql_grammar.py
+
 from pyparsing import Word, White, alphas, nums, alphanums, Literal, CaselessLiteral, \
                         Group, OneOrMore, ZeroOrMore, StringEnd, Forward, Optional, ParseException
 import json
