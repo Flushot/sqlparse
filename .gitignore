@@ -1,4 +1,6 @@
 .DS_Store
 Thumbs.db
 *.log
+*.pyc
+/sqlparse.egg-info/
 /.idea/workspace.xml

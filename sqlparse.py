@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+__version__ = '0.1'
+
+import os
 import sys
 import operator
 import collections
@@ -127,26 +130,27 @@ identifier = Word( alphas, alphanums + '_$' ).setName('identifier')  # a, A1, a_
 #alias = ( Optional(AS) + identifier ).setName('alias')
 
 # Projection
-columnName = delimitedList( identifier, DOT, combine=True )  # TODO: x AS y, x y, x `y`, x 'y', `x`, 'x'
-columnNameList = Group( delimitedList( columnName ) )
-tableName = delimitedList( identifier, DOT, combine=True )
+columnName = delimitedList( identifier, DOT, combine=True )('column')  # TODO: x AS y, x y, x `y`, x 'y', `x`, 'x'
+columnNameList = Group( delimitedList( STAR | columnName ) )
+tableName = delimitedList( identifier, DOT, combine=True )('table')
 tableNameList = Group( delimitedList( tableName ) )
 
 whereExpr = Forward()  # WHERE
 
 # TODO: indirect comparisons (e.g. "table1.field1.xyz = 3" becomes "table1.any(field1.xyz == 3)")
 # TODO: math expression grammar (for both lval and rval)
-binaryOp = (
-    OP_VAL_NULLSAFE_EQUAL |
-    OP_EQUAL | 
-    OP_NOTEQUAL | 
-    OP_LT | 
-    OP_GT | 
-    OP_GTE | 
-    OP_LTE | 
-    Combine( Optional(LOGOP_NOT) + OP_LIKE )
+standardOp = (
+    OP_VAL_NULLSAFE_EQUAL ^
+    OP_EQUAL ^
+    OP_NOTEQUAL ^
+    OP_LT ^
+    OP_GT ^
+    OP_GTE ^
+    OP_LTE
     )
-isOp = OP_IS + Optional(LOGOP_NOT)  # IS [ NOT ]
+likeOp = (
+    ( Optional(LOGOP_NOT) + OP_LIKE )
+    )
 betweenOp = Optional(LOGOP_NOT) + OP_BETWEEN  # [ NOT ] BETWEEN
 realNumber = (
     Combine(
@@ -158,24 +162,27 @@ realNumber = (
             ( Word(nums) + Optional( E + Optional(MINUS) + Word(nums) ) )
             )
         ).setParseAction( lambda token: float(token[0]) )
-    )  # .1, 1.2, 1.2e3, -1.2e+3, 1.2e-3
+    ).setName('real')  # .1, 1.2, 1.2e3, -1.2e+3, 1.2e-3
 intNumber = (
     Combine(
         Optional(sign) +
-        Word(nums) + 
-        Optional( E + Optional(PLUS) + Word(nums) )
+        Word(nums)
+        #Optional( E + Optional(PLUS) + Word(nums) )  # python int() doesn't grok this
         ).setParseAction( lambda token: int(token[0]) )
-    )  # -1 0 1 23
-number = realNumber | intNumber
+    ).setName('int')  # -1 0 1 23
+number = intNumber ^ realNumber
 atom = (
     number |
-    quotedString.setParseAction( lambda t: t[0][1:-1] )  # unquote string
+    quotedString.setName('string').setParseAction( lambda t: '"%s"' % t[0][1:-1] )  # normalize quotes
     )
 groupSubSelectStmt = Group( R_PAREN + selectStmt + R_PAREN )  # todo: subselect must have a LIMIT in this context
 columnRval = (
-    atom |
-    columnName |
-    groupSubSelectStmt
+    atom('value') |
+    columnName('column') |
+    groupSubSelectStmt('query')
+    )
+likePattern = (
+    quotedString('value')
     )
 # TODO: Functions: sum, avg, count, max, min, ifnull/isnull, if
 #            current_date, current_time, current_timestamp, current_user
@@ -184,22 +191,23 @@ columnRval = (
 whereCond = (
     Optional(LOGOP_NOT('op')) +
     Group(
-        ( columnName('lval') + binaryOp('op') + columnRval('rval') ) |  # x = y, x != y, etc.
-        ( columnName('lval') + isOp('op') + ( VAL_NULL | VAL_TRUE | VAL_FALSE | VAL_UNKNOWN )('rval') ) |  # x is null, x is not null
-        ( columnName('lval') + betweenOp('op') + Group( columnRval + OP_BETWEEN_AND + columnRval )('rval') ) |  # x between y and z, x not between y and z
-        ( columnName('lval') + Combine( Optional(LOGOP_NOT) + OP_IN )('op') +
-            Group( L_PAREN + delimitedList(columnRval) + R_PAREN | groupSubSelectStmt )('rval') )
-        )('lval') |
-    ( L_PAREN + whereExpr + R_PAREN )
+        ( columnName('column') + standardOp('op') + columnRval ) |  # x = y, x != y, etc.
+        ( columnName('column') + likeOp('op') + likePattern ) |
+        ( columnName('column') + betweenOp('op') + Group( columnRval + OP_BETWEEN_AND + columnRval )('range') ) |  # x between y and z, x not between y and z
+        ( columnName('column') + ( OP_IS + Optional(LOGOP_NOT) )('op') + ( VAL_NULL | VAL_TRUE | VAL_FALSE | VAL_UNKNOWN )('value') ) |  # x is null, x is not null
+        ( columnName('column') + ( Optional(LOGOP_NOT) + OP_IN )('op') +
+            Group( L_PAREN + delimitedList(columnRval) + R_PAREN | groupSubSelectStmt )('set') )
+        )('expr') |
+    ( L_PAREN + whereExpr('expr') + R_PAREN )
     )
 whereExpr << (
-    whereCond('lval') +
-    ZeroOrMore( ( LOGOP_AND | LOGOP_OR | LOGOP_XOR )('op') + whereExpr('rval') )
+    Group( whereCond ) ^
+    Group( whereCond + OneOrMore( ( LOGOP_AND | LOGOP_OR | LOGOP_XOR )('op') + whereExpr('expr') ) )
     )
 
 columnProjection = (
-    Optional( SELECT_DISTINCT | SELECT_ALL ) + 
-    ( STAR | columnNameList )('columns')
+    Optional( SELECT_DISTINCT | SELECT_ALL ).setResultsName('modifier') +
+    columnNameList('columns')
     )
 
 fromClause = Suppress(FROM) + tableNameList('tables')
@@ -209,8 +217,8 @@ fromClause = Suppress(FROM) + tableNameList('tables')
 # TODO: PIVOT, UNPIVOT
 pivotClause = Optional(
     Group(
-        PIVOT + L_PAREN + Group(columnNameList) + 
-        PIVOT_FOR + columnName + 
+        PIVOT + L_PAREN + Group(columnNameList) +
+        PIVOT_FOR + columnName +
         PIVOT_IN + Group(columnNameList) +
         R_PAREN )
     )('pivot')
@@ -238,7 +246,7 @@ selectStmt << (
     )
 
 # UNION ( ALL )
-unionOp = SELECTOP_UNION + Optional(SELECTOP_UNION_ALL)
+unionOp = Combine( SELECTOP_UNION + Optional(SELECTOP_UNION_ALL) )
 
 # SELECT ... ( UNION | INTERSECT | EXCEPT ) SELECT ...
 selectStmts = selectStmt + ZeroOrMore( ( unionOp | SELECTOP_INTERSECT | SELECTOP_EXCEPT ) + selectStmt )
@@ -255,43 +263,10 @@ sqlQuery.ignore(comment)
 # Tests
 ################################
 
-import json
-
-
-class PyParseEncoder(json.JSONEncoder):
-    """
-    Encodes a ParseResults as a sideways JSON tree.
-    Used for debugging parse trees.
-    """
-    def default(self, obj):
-        import inspect
-        if isinstance(obj, ParseResults):
-            x = obj.asDict()
-            if x.keys():
-                obj = x
-            else:
-                x = obj.asList()
-                if len(x) == 1:
-                    obj = x[0]
-                else:
-                    obj = x
-        else:
-            obj = super(PyParseEncoder, self).default(obj)
-        if inspect.isfunction(obj):
-            obj = str(obj)
-        return obj
-
-    @classmethod
-    def print_tree(cls, parse_result):
-        """
-        Prints a tree to the console.
-        Used for visualizing parse tree.
-        """
-        print json.dumps(parse_result, cls=PyParseEncoder, sort_keys=False, indent=2)
-
-
 
 class TestSqlQueryGrammar(unittest.TestCase):
+    PRINT_PARSE_RESULTS = True #bool(os.environ.get('PRINT_PARSE_RESULTS', False))
+
     """
     Test cases for grammar parsing
     """
@@ -314,94 +289,91 @@ class TestSqlQueryGrammar(unittest.TestCase):
             return map(lambda i: self.parseAndAssert(i, expectError=expectError), inputStr)
 
         try:
-            print
-            print '#' * 50
-            prefix = '   '
-
-            print '%sINPUT  : %s' % (prefix, inputStr)
+            if self.PRINT_PARSE_RESULTS and not expectError:
+                print
+                print inputStr
 
             tokens = sqlQuery.parseString(inputStr)
-            print '%sTOKENS : %s' % (prefix, tokens)
-            print '%sTABLES : %s' % (prefix, ', '.join(tokens.tables))
-            print '%sCOLS   : %s' % (prefix, ', '.join(tokens.columns))
-
-            if tokens.where != '':
-                print prefix + 'WHERE  :',
-                #print tokens.where.dump(depth=len(prefix))
-                #PyParseEncoder.print_tree(tokens.where)
+            if self.PRINT_PARSE_RESULTS and not expectError:
                 print tokens.asXML('query')
 
-                self.assertFalse(expectError, inputStr) # parsed without error = pass
-                return tokens
+            #print tokens.where.dump()
+
+            self.assertFalse(expectError, inputStr) # parsed without error = pass
+            return tokens
 
         except ParseException, err:
-            if not expectError:
-                self.assertTrue(True)
-                print '%sERROR : %s' % (prefix, err)
-                print
-                print '%s    %s' % (prefix, err.line)
-                print prefix + '    ' + '-' * (err.col - 1) + '^'
-                print
+            if self.PRINT_PARSE_RESULTS and not expectError:
+                #print '%s' % err.line
+                print '-' * (err.col - 1) + '^'
+                print 'ERROR: %s' % err
             self.assertTrue(expectError, '%s, parsing "%s"' % (err, inputStr))
 
-    def test_misc(self):
-        # TODO: move this combined mess into appropriate test cases
-        self.parseAndAssert([
-
-            #'select a from table where b = 3 and c = (select id from d where e = 1)',
-
-            #'select a from b where c in (select d from e where f = 1)',
-
-            ], expectError=False)
-
+    @unittest.skip('unimplemented')
     def test_aliases(self):
         pass
 
     def test_SELECT_with_FROM_and_simple_join(self):
         # valid queries
-        # invalid queries
         results = self.parseAndAssert([
+
+            #'select 1 from a', # unsupported for now
 
             'select * from xyzzy, ABC',
 
-            'select *, 1 from xyzzy, ABC',
+            'select a, * from xyzzy, ABC',
+
+            'select *, a from xyzzy, ABC',
 
             'select *, blah from xyzzy , abc',
 
             'select a,b,c , D ,e from xyzzy,ABC',
 
-            'select all a,b,c from sys.blah ,Table2'
+            'select all a,b,c from sys.blah ,Table2',
 
             ])
+        self.assertIsNotNone(results)
         for result in results:
+            self.assertIsNotNone( result )
             self.assertTrue( len(result.tables) > 1 )
             self.assertTrue( len(result.columns) > 0 )
 
+        # invalid queries
+        self.parseAndAssert([
+
+            'select * from a .b'
+
+            ], expectError=True)
+
+    @unittest.skip('unimplemented')
     def test_SELECT_without_FROM(self):
         # standalone 'select x'
-        # valid queries
-        # invalid queries
         pass
 
+    @unittest.skip('unimplemented')
     def test_PIVOT(self):
-        # self.parseAndAssert([
+        self.parseAndAssert([
 
-        #     'select a from b pivot ( q for col in (c1, c2, c3) ) where y = 1'
+            'select a from b pivot ( q for col in (c1, c2, c3) ) where y = 1'
 
-        #     ])
+            ])
         pass
 
     def test_explicit_JOIN(self):
         pass
 
     def test_WHERE_and_operators(self):
-        # valid queries
-        # invalid queries
         self.parseAndAssert([
 
             'select a from b where c = 1',
 
+            'select a from b where c = 1 and d = 2 and e = 3',
+
             'select a from b where c <=> 1',
+
+            'select a from b where c is null',
+
+            'select a from b where c is not null',
 
             'select a from b where b.a = "test"',
 
@@ -415,7 +387,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
 
             'SELECT A from sys.blah where a in ("RED","GREEN", "BLUE")',
 
-            'select x from y where z between 10 and 30.5'
+            'select x from y where z between 10 and 30.5',
 
             'select distinct a from b,x where ( c = 1 ) or ( d != 2 ) or e >= 3',
 
@@ -425,62 +397,65 @@ class TestSqlQueryGrammar(unittest.TestCase):
 
             'select a from b where a not in (1,2,3.5) and d = 1',
 
-            "select distinct A from sys.blah where a in ('xx','yy', 'zz' ) and b in ( 10, 20,30,2.5 )",
+            "select distinct A from sys.blah where a in (\"xx\",'yy', 'zz' ) and b in ( 10, 20,30,2.5 )",
 
             'select a from table where b = 3 and c = -1 and d is null and e is not null',
 
-            'select a from b where c like "%blah%" and d not like "%whatever"',
+            'select a from b where c like \'%blah%\' and d not like "%whatever" and c like \'l\'',
 
-            'select x from y,z where y.a != z.a or ( y.a > 3 and y.b = 1 ) and ( y.x <= a.x or ( y.x = 1 or y.y = 3 )) and z in (2,4,6)'
+            'select x from y,z where y.a != z.a or ( y.a > 3 and y.b = 1 ) and ( y.x <= a.x or ( y.x = 1 or y.y = 3 )) and z in (2,4,6)',
+
+            #'select a from table where b = 3 and c = (select id from d where e = 1)',
+
+            #'select a from b where c in (select d from e where f = 1)',
 
             ])
 
+    @unittest.skip('unimplemented')
     def test_GROUP_BY(self):
-        # valid queries
-        # invalid queries
         pass
 
+    @unittest.skip('unimplemented')
     def test_ORDER_BY(self):
-        # valid queries
-        # invalid queries
         pass
 
+    @unittest.skip('unimplemented')
     def test_HAVING(self):
-        # valid queries
-        # invalid queries
         pass
 
+    @unittest.skip('unimplemented')
     def test_LIMIT(self):
-        # valid queries
-        # invalid queries
         pass
 
+    @unittest.skip('unimplemented')
     def test_UNION_and_UNION_ALL(self):
-        # self.parseAndAssert([
+        self.parseAndAssert([
 
-        #     'select a from b union select c from d',
+            'select a from b union select c from d',
 
-        #     'select a from b union all select c from d',
+            'select a from b union all select c from d',
 
-        #     'select a from b union all (select c from d) except select e from f'
+            'select a from b union all (select c from d) except select e from f'
 
-        #     ])
+            ])
         pass
 
+    @unittest.skip('unimplemented')
     def test_EXCEPT(self):
-        # self.parseAndAssert([
-            
-        #     'select a from b except select e from f'
+        self.parseAndAssert([
 
-        #     ])
+            'select a from b except select e from f'
+
+            ])
         pass
 
+    @unittest.skip('unimplemented')
     def test_INTERSECT(self):
-        # self.parseAndAssert([
+        self.parseAndAssert([
 
-        #     'select a from b intersect select e from f'
+            'select a from b intersect select e from f'
 
-        #     ])
+            ])
         pass
 
     def test_comments(self):
