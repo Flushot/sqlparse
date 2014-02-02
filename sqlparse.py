@@ -11,7 +11,8 @@ import sqlalchemy
 import pyparsing
 from pyparsing import \
     Forward, Group, Combine, Suppress, StringEnd, \
-    Optional, ZeroOrMore, OneOrMore, oneOf, operatorPrecedence, \
+    Optional, ZeroOrMore, OneOrMore, oneOf, \
+    operatorPrecedence, opAssoc, \
     Word, Literal, CaselessLiteral, Regex, \
     alphas, nums, alphanums, quotedString, \
     restOfLine, quotedString, delimitedList, \
@@ -62,13 +63,13 @@ VAL_UNKNOWN = CaselessLiteral('unknown')
 # ORDER_BY = CaselessLiteral('order by')
 
 # Operators (name is operators.FUNC_NAME)
-OP_EQUAL = Literal('=')#.setParseAction(lambda t: operator.eq)
-OP_VAL_NULLSAFE_EQUAL = Literal('<=>')#.setParseAction(lambda t: operator.eq)
-OP_NOTEQUAL = ( Literal('!=') | Literal('<>') )#.setParseAction(lambda t: operator.ne)
-OP_GT = Literal('>').setName('gt')#.setParseAction(lambda t: operator.gt)
-OP_LT = Literal('<').setName('lt')#.setParseAction(lambda t: operator.lt)
-OP_GTE = Literal('>=').setName('ge')#.setParseAction(lambda t: operator.ge)
-OP_LTE = Literal('<=').setName('le')#.setParseAction(lambda t: operator.le)
+OP_EQUAL = Literal('=').setParseAction(lambda t: operator.eq)
+OP_VAL_NULLSAFE_EQUAL = Literal('<=>').setParseAction(lambda t: operator.eq)
+OP_NOTEQUAL = ( Literal('!=') | Literal('<>') ).setParseAction(lambda t: operator.ne)
+OP_GT = Literal('>').setName('gt').setParseAction(lambda t: operator.gt)
+OP_LT = Literal('<').setName('lt').setParseAction(lambda t: operator.lt)
+OP_GTE = Literal('>=').setName('ge').setParseAction(lambda t: operator.ge)
+OP_LTE = Literal('<=').setName('le').setParseAction(lambda t: operator.le)
 OP_IN = CaselessLiteral('in')  # sqlalchemy property: lhs.in_(rhs)
 OP_LIKE = CaselessLiteral('like')  # sqlalchemy property: lhs.like(rhs), lhs.ilike(rhs)
 OP_IS = CaselessLiteral('is')  # sqlalchemy or_(lhs == rhs, lhs == None)
@@ -93,9 +94,9 @@ OP_BETWEEN_AND = Suppress( CaselessLiteral('and') )
 # BITOP_XOR = Literal('^')
 
 # Conjugates
-LOGOP_AND = ( CaselessLiteral('and') | CaselessLiteral('&&') )#.setParseAction(lambda t: sqlalchemy.and_)
-LOGOP_OR =  ( CaselessLiteral('or')  | CaselessLiteral('||') )#.setParseAction(lambda t: sqlalchemy.or_)
-LOGOP_NOT = ( CaselessLiteral('not') | CaselessLiteral('!')  )#.setParseAction(lambda t: sqlalchemy.not_)  # unary
+LOGOP_AND = ( CaselessLiteral('and') | CaselessLiteral('&&') ).setParseAction(lambda t: sqlalchemy.and_)
+LOGOP_OR =  ( CaselessLiteral('or')  | CaselessLiteral('||') ).setParseAction(lambda t: sqlalchemy.or_)
+LOGOP_NOT = ( CaselessLiteral('not') | CaselessLiteral('!')  ).setParseAction(lambda t: sqlalchemy.not_)  # unary
 LOGOP_XOR = CaselessLiteral('xor')#.setParseAction(lambda t: lambda a, b:
     #sqlalchemy.and_(sqlalchemy.or_(a, b), sqlalchemy.not_(sqlalchemy.and_(a, b))))
 
@@ -139,7 +140,7 @@ whereExpr = Forward()  # WHERE
 
 # TODO: indirect comparisons (e.g. "table1.field1.xyz = 3" becomes "table1.any(field1.xyz == 3)")
 # TODO: math expression grammar (for both lval and rval)
-standardOp = (
+equalityOp = (
     OP_VAL_NULLSAFE_EQUAL ^
     OP_EQUAL ^
     OP_NOTEQUAL ^
@@ -191,18 +192,48 @@ likePattern = (
 whereCond = (
     Optional(LOGOP_NOT('op')) +
     Group(
-        ( columnName('column') + standardOp('op') + columnRval ) |  # x = y, x != y, etc.
+        ( columnName('column') + equalityOp('op') + columnRval ) |  # x = y, x != y, etc.
         ( columnName('column') + likeOp('op') + likePattern ) |
         ( columnName('column') + betweenOp('op') + Group( columnRval + OP_BETWEEN_AND + columnRval )('range') ) |  # x between y and z, x not between y and z
         ( columnName('column') + ( OP_IS + Optional(LOGOP_NOT) )('op') + ( VAL_NULL | VAL_TRUE | VAL_FALSE | VAL_UNKNOWN )('value') ) |  # x is null, x is not null
         ( columnName('column') + ( Optional(LOGOP_NOT) + OP_IN )('op') +
-            Group( L_PAREN + delimitedList(columnRval) + R_PAREN | groupSubSelectStmt )('set') )
+            Group( L_PAREN + delimitedList(columnRval) + R_PAREN | groupSubSelectStmt )('values') )
         )('expr') |
     ( L_PAREN + whereExpr('expr') + R_PAREN )
     )
+
+class UnaryOperator(object):
+    def __init__(self, tokens):
+        self.op, self.rhs = tokens[0]
+
+    def __repr__(self):
+        return '%s %s' % (self.op, self.rhs)
+
+
+class BinaryOperator(object):
+    def __init__(self, tokens):
+        self.lhs, self.op, self.rhs = tokens[0]
+
+    def __repr__(self):
+        return '%s %s %s' % (self.lhs, self.op, self.rhs)
+
+
+# logOp = operatorPrecedence(
+#     whereExpr('expr'), [
+#         (LOGOP_NOT, 1, opAssoc.RIGHT, UnaryOperator),
+#         (LOGOP_AND, 2, opAssoc.RIGHT, BinaryOperator),
+#         (LOGOP_OR,  2, opAssoc.RIGHT, BinaryOperator)
+#     ])
 whereExpr << (
     Group( whereCond ) ^
-    Group( whereCond + OneOrMore( ( LOGOP_AND | LOGOP_OR | LOGOP_XOR )('op') + whereExpr('expr') ) )
+    Group(
+        whereCond +
+        OneOrMore(
+            LOGOP_AND('op') + whereExpr('expr') |
+            LOGOP_XOR('op') + whereExpr('expr') |
+            LOGOP_OR('op') + whereExpr('expr')
+        )
+    )
     )
 
 columnProjection = (
@@ -270,7 +301,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
     """
     Test cases for grammar parsing
     """
-    def parseAndAssert(self, inputStr, expectError=False):
+    def assertParses(self, inputStr, expectError=False):
         """
         parses :inputStr: and assets the parse succeeded
         (or failed if :expectError: is True)
@@ -286,7 +317,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
             if so, suppresses the ParseException
         """
         if isinstance(inputStr, list):
-            return map(lambda i: self.parseAndAssert(i, expectError=expectError), inputStr)
+            return map(lambda i: self.assertParses(i, expectError=expectError), inputStr)
 
         try:
             if self.PRINT_PARSE_RESULTS and not expectError:
@@ -315,7 +346,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
 
     def test_SELECT_with_FROM_and_simple_join(self):
         # valid queries
-        results = self.parseAndAssert([
+        results = self.assertParses([
 
             #'select 1 from a', # unsupported for now
 
@@ -339,7 +370,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
             self.assertTrue( len(result.columns) > 0 )
 
         # invalid queries
-        self.parseAndAssert([
+        self.assertParses([
 
             'select * from a .b'
 
@@ -352,7 +383,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
 
     @unittest.skip('unimplemented')
     def test_PIVOT(self):
-        self.parseAndAssert([
+        self.assertParses([
 
             'select a from b pivot ( q for col in (c1, c2, c3) ) where y = 1'
 
@@ -363,7 +394,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
         pass
 
     def test_WHERE_and_operators(self):
-        self.parseAndAssert([
+        self.assertParses([
 
             'select a from b where c = 1',
 
@@ -429,7 +460,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
 
     @unittest.skip('unimplemented')
     def test_UNION_and_UNION_ALL(self):
-        self.parseAndAssert([
+        self.assertParses([
 
             'select a from b union select c from d',
 
@@ -442,7 +473,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
 
     @unittest.skip('unimplemented')
     def test_EXCEPT(self):
-        self.parseAndAssert([
+        self.assertParses([
 
             'select a from b except select e from f'
 
@@ -451,7 +482,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
 
     @unittest.skip('unimplemented')
     def test_INTERSECT(self):
-        self.parseAndAssert([
+        self.assertParses([
 
             'select a from b intersect select e from f'
 
@@ -459,7 +490,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
         pass
 
     def test_comments(self):
-        self.parseAndAssert([
+        self.assertParses([
 
             'Select A , b,c from Sys.blah # ignored comment',
 
