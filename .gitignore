@@ -4,3 +4,4 @@ Thumbs.db
 *.pyc
 /sqlparse.egg-info/
 /.idea/workspace.xml
+/.idea/

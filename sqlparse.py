@@ -315,7 +315,7 @@ sqlQuery.ignore(comment)
 
 
 class TestSqlQueryGrammar(unittest.TestCase):
-    PRINT_PARSE_RESULTS = True #bool(os.environ.get('PRINT_PARSE_RESULTS', False))
+    PRINT_PARSE_RESULTS = bool(os.environ.get('PRINT_PARSE_RESULTS', True))
 
     """
     Test cases for grammar parsing
@@ -451,7 +451,7 @@ class TestSqlQueryGrammar(unittest.TestCase):
 
             'select a from table where b = 3 and c = -1 and d is null and e is not null',
 
-            'select a from b where c like \'%blah%\' and d not like "%whatever" and c like \'l\'',
+            'select a from b where c like \'%%blah%%\' and d not like "%%whatever" and c like \'l\'',
 
             'select x from y,z where y.a != z.a or ( y.a > 3 and y.b = 1 ) and ( y.x <= a.x or ( y.x = 1 or y.y = 3 )) and z in (2,4,6)',
 
