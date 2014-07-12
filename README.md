@@ -13,10 +13,19 @@ To run unit tests, run:
 
 ## Example
 
-    import sqlparse
+    >>> import sqlparse
+    >>> ast = sqlparse.sqlQuery.parseString('select a from b where c = 1 and d = 2 or e = "f"')
+    >>> print ast.asXML('query')
+    <query>
+      <columns>
+        <column>a</column>
+      </columns>
+      <tables>
+        <table>b</table>
+      </tables>
+      <where>(and (= c 1) (or (= d 2) (= e "f")))</where>
+    </query>
 
-    parse_tree = sqlparse.sqlQuery.parseString('select * from whatever where a = 1')
-    print parse_tree.asXML('query')
 
 ## License
 
