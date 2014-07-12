@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import operator
 import logging
+import inspect
 
 import sqlparse
 import sqlalchemy
+import pyparsing
 
 logger = logging.getLogger(__name__)
 
@@ -17,37 +19,59 @@ class QueryBuilder(object):
         '>':   operator.gt,
         '>=':  operator.ge,
         '!':   sqlalchemy.not_,
+        'not': sqlalchemy.not_,
         'and': sqlalchemy.and_,
         'or':  sqlalchemy.or_,
+        #'xor': sqlalchemy.xor_
     }
 
     __primitives = (int, float, str, unicode, bool)
 
-    def __init__(self, session, modelClass):
+    def __init__(self, session):
         self.session = session
-        self.modelClass = modelClass
 
     def parseAndBuild(self, queryString):
-        logger.info('parsing: %s' % queryString)
+        try:
+            #logger.debug('Parsing: %s' % queryString)
+            ast = sqlparse.parseString(queryString)
+        except pyparsing.ParseException, err:
+            msg = [
+                'Parse Error: %s' % err,
+                queryString,
+                '-' * (err.col - 1) + '^',
+            ]
+            logger.error('\n'.join(msg))
+            raise
 
+        classNames = ast['tables']
+        self.modelClass = self._getModelClass(classNames[0])
+        logger.debug('FROM: %s -> %s' % (classNames, self.modelClass))
         query = self.session.query(self.modelClass)
-        qtree = sqlparse.parseString(queryString)
 
-        rootExpr = self._evalExpr(qtree.where[0])
-        logger.debug('rootExpr: %s' % rootExpr)
+        whereExpr = self._evalExpr(ast.where[0])
+        logger.debug('WHERE: %s' % whereExpr)
 
-        query = query.filter(rootExpr)
+        query = query.filter(whereExpr)
 
         return query
 
+    def _getModelClass(self, className):
+        klass = globals()[className]
+        if not inspect.isclass(klass):
+            raise ValueError('%s is not a class' % className)
+        return klass
+
     def _evalExpr(self, expr):
         if isinstance(expr, sqlparse.UnaryOperator):
-            raise ValueError('unary operators not supported')
+            oper = self.__operators.get(expr.op)
+            if oper is None:
+                raise ValueError('unknown unary operator: %s' % expr.op)
+            return oper(self._evalExpr(expr.rhs))
 
         elif isinstance(expr, sqlparse.BinaryOperator):
             oper = self.__operators.get(expr.op)
             if oper is None:
-                raise ValueError('unknown operator: %s' % expr.op)
+                raise ValueError('unknown binary operator: %s' % expr.op)
             return oper(self._evalExpr(expr.lhs), self._evalExpr(expr.rhs))
 
         elif isinstance(expr, sqlparse.ListValue):
@@ -55,7 +79,7 @@ class QueryBuilder(object):
             return expr.values
 
         elif isinstance(expr, sqlparse.RangeValue):
-            return range(expr.start, expr.end)  # Supported by sqlalchemy?
+            raise ValueError('range values not implemeneted yet')
 
         elif type(expr) in (str, unicode):
             if len(expr) > 2 and expr[0] in ('"', "'"):
@@ -74,8 +98,9 @@ class QueryBuilder(object):
 
 
 if __name__ == '__main__':
-    from pprint import pprint
     import sqlalchemy.orm, sqlalchemy.ext.declarative
+    import itertools
+    logging.basicConfig(level=logging.DEBUG)
 
     # Testing
     engine = sqlalchemy.create_engine('sqlite://', echo=True)
@@ -89,18 +114,42 @@ if __name__ == '__main__':
         id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
         first_name = sqlalchemy.Column(sqlalchemy.String)
         last_name = sqlalchemy.Column(sqlalchemy.String)
+        is_active = sqlalchemy.Column(sqlalchemy.Boolean)
 
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
                 setattr(self, k, v)
 
+        def __str__(self):
+            return '%s %s' % (self.first_name, self.last_name)
+
     # Add seed data
     Base.metadata.create_all()
-    session.add(User(first_name='Chris', last_name='Lyon'))
-    session.add(User(first_name='Chris', last_name='Smith'))
+    names = {
+        'first': [
+            'Chris',
+            'John',
+            'Bob'
+        ],
+        'last': [
+            'Jacob',
+            'Smith',
+            'Lyon'
+        ]
+    }
+    for first_name, last_name in itertools.product(names['first'], names['last']):
+        session.add(User(
+            first_name=first_name,
+            last_name=last_name,
+            is_active=(first_name == 'Chris')))
 
     # Query seed data
-    userBuilder = QueryBuilder(session, User)
-    query = userBuilder.parseAndBuild('select * from User where first_name = "Chris" and last_name = "Lyon"')
+    userBuilder = QueryBuilder(session)
+    query = userBuilder.parseAndBuild("""
+        select * from User where
+            not (last_name = 'Jacob' or
+                (first_name != 'Chris' and last_name != 'Lyon')) and
+            not is_active = 1
+        """)
     for user in query.all():
-        pprint(user)
+        logger.info(user)
