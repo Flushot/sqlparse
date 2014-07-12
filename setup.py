@@ -30,5 +30,5 @@ setup(
         #'sqlalchemy'
     ],
 
-    test_suite='sqlparse'
+    test_suite='test'
 )
