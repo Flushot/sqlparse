@@ -5,3 +5,4 @@ Thumbs.db
 /sqlparse.egg-info/
 /.idea/workspace.xml
 /.idea/
+/.venv/

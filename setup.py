@@ -16,7 +16,7 @@ setup(
 
     author='Chris Lyon',
     author_email='flushot@gmail.com',
-    description='Parses SQL query into an AST',
+    description='SQL parser and query builders',
     long_description=open('README.md').read(),
     url='https://github.com/Flushot/sqlparse',
     license='Apache License 2.0',
@@ -27,8 +27,9 @@ setup(
     ],
 
     install_requires=[
+        'pyparsing'
         #'sqlalchemy'
     ],
 
-    test_suite='test'
+    test_suite='sqlparse'
 )

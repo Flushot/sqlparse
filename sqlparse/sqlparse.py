@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-__version__ = '0.1.0'
+from abc import ABCMeta
 
 import pyparsing
 from pyparsing import \
@@ -31,7 +31,16 @@ from pyparsing import \
 # Data Structures
 ################################
 
-class UnaryOperator(object):
+class Operator(object):
+    __meta__ = ABCMeta
+
+class Value(object):
+    __meta__ = ABCMeta
+
+class Identifier(object):
+    __meta__ = ABCMeta
+
+class UnaryOperator(Operator):
     """
     -x +x ~x
     not
@@ -43,7 +52,7 @@ class UnaryOperator(object):
         return '(%s %s)' % (self.op, self.rhs)
 
 
-class BinaryOperator(object):
+class BinaryOperator(Operator):
     """
     x+y x-y x*y x**y x^y x/y x//y
     | & << <<< >> >>> or xor and in
@@ -55,7 +64,7 @@ class BinaryOperator(object):
         return '(%s %s %s)' % (self.op, self.lhs, self.rhs)
 
 
-class ListValue(object):
+class ListValue(Value):
     """
     [x,y,...]
     (x,y,...)
@@ -68,7 +77,7 @@ class ListValue(object):
         return "'(%s)" % ' '.join(map(str, self.values))
 
 
-class RangeValue(object):
+class RangeValue(Value):
     """
     [x...y]
     (x...y)
