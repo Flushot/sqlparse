@@ -1,0 +1,12 @@
+language: python
+before_script:
+script: make && make test
+branches:
+    only:
+        - master
+notifications:
+    recipients:
+        - flushot@gmail.com
+    email:
+        on_success: change
+        on_failure: always

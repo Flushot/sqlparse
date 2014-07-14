@@ -46,20 +46,13 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
     }
 
     def parse_and_build(self, query_string):
-        try:
-            #logger.debug('Parsing: %s' % queryString)
-            ast = sqlparse.parseString(query_string)
-        except pyparsing.ParseException, err:
-            msg = [
-                'Parse Error: %s' % err,
-                query_string,
-                '-' * (err.col - 1) + '^',
-            ]
-            logger.error('\n'.join(msg))
-            raise
-        
+        ast = self._parse(query_string)
+
         # TODO: support multiple classes and aliases
         class_names = ast['tables']
+        if len(class_names) > 0:
+            raise ValueError('queries only support a single model class')
+
         self.model_class = self._get_model_class(class_names[0])
         logger.debug('FROM: %s -> %s' % (class_names, self.model_class))
         query = self.session.query(self.model_class)
@@ -98,6 +91,7 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
                 return expr[1:-1]
             else:
                 # identifier (assume prop on model)
+                # TODO: ensure expr is a mapped property that can be queried
                 return getattr(self.model_class, expr)
 
         elif self._is_primitive(expr):
