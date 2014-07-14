@@ -1,9 +1,8 @@
 # SqlParse
 
-Parses SQL query into an AST.
+Parses and transforms SQL queries.
 
-This is a custom dialect of SQL. It isn't emulating any particular database server's implementation, but a design
-goal is to keep it compatible with ANSI SQL.
+This is a custom dialect of SQL for experimentation purposes. It isn't emulating any particular database server's implementation, but a design goal is to keep it compatible with ANSI SQL.
 
 ## Tests
 
@@ -13,7 +12,9 @@ To run unit tests, run:
 
     `./setup.py test` or `./sqlparse.py`
 
-## Example
+## Examples
+
+Parsing SQL query into an abstract syntax tree:
 
     >>> import sqlparse
     >>> ast = sqlparse.sqlQuery.parseString('select a from b where c = 1 and d = 2 or e = "f"')
@@ -27,6 +28,67 @@ To run unit tests, run:
       </tables>
       <where>(and (= c 1) (or (= d 2) (= e "f")))</where>
     </query>
+
+Converting a SQL query into a SqlAlchemy query:
+
+    >>> import sqlparse
+    >>> builder = SqlAlchemyQueryBuilder(sa_session, globals())
+    >>> sqlalchemy_query = builder.parse_and_build("""
+    ...     select * from User where
+    ...         not (last_name = 'Jacob' or
+    ...             (first_name != 'Chris' and last_name != 'Lyon')) and
+    ...         not is_active = 1
+    ... """)
+    >>> for result in sqlalchemy_query.all():
+    ...     # do something
+
+Converting a SQL query into a MongoDB query:
+
+    >>> import sqlparse, json
+    >>> builder = sqlparse.builders.MongoQueryBuilder(pymongo_database)
+    >>> mongo_query = builder.parse_and_build("""
+    ...     select * from User where
+    ...         not (last_name = 'Jacob' or
+    ...             (first_name != 'Chris' and last_name != 'Lyon')) and
+    ...         not is_active = 1
+    ... """)
+    >>> print json.dumps(mongo_query, indent=4)
+    {
+        "$and": [
+            {
+                "$nor": [
+                    {
+                        "$or": [
+                            {
+                                "last_name": "Jacob"
+                            },
+                            {
+                                "$and": [
+                                    {
+                                        "first_name": {
+                                            "$ne": "Chris"
+                                        }
+                                    },
+                                    {
+                                        "last_name": {
+                                            "$ne": "Lyon"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "$nor": [
+                    {
+                        "is_active": 1
+                    }
+                ]
+            }
+        ]
+    }
 
 
 ## License
