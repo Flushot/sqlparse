@@ -32,7 +32,7 @@ Parsing SQL query into an abstract syntax tree:
 Converting a SQL query into a SqlAlchemy query:
 
     >>> import sqlparse
-    >>> builder = SqlAlchemyQueryBuilder(sa_session, globals())
+    >>> builder = sqlparse.bulders.SqlAlchemyQueryBuilder(sa_session, globals())
     >>> sqlalchemy_query = builder.parse_and_build("""
     ...     select * from User where
     ...         not (last_name = 'Jacob' or
