@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class SqlAlchemyQueryBuilderTest(BuilderTestCase):
     def setUp(self):
-        self.engine = sqlalchemy.create_engine('sqlite://', echo=True)
+        self.engine = sqlalchemy.create_engine('sqlite://', echo=False)
 
         Session = sqlalchemy.orm.sessionmaker(bind=self.engine)
         self.session = Session()
@@ -71,7 +71,9 @@ class SqlAlchemyQueryBuilderTest(BuilderTestCase):
                     (first_name != 'Chris' and last_name != 'Lyon')) and
                 not is_active = 1
             """)
-        for user in query.all():
-            logger.info(user)
 
-        self.assertTrue(False)
+        results = query.all()
+        #for user in results:
+        #    logger.info(user)
+
+        self.assertEquals(4, len(results))

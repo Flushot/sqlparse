@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import operator
 import logging
+import inspect
 
 import pyparsing
 import sqlalchemy
@@ -26,6 +27,7 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
         '||':  sqlalchemy.or_,
         'xor': operator.xor,
         '^':   operator.xor,
+        #'in':  sqlalchemy.in_,
 
         '+':   operator.add,
         '-':   operator.sub,
@@ -50,19 +52,25 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
 
         # TODO: support multiple classes and aliases
         class_names = ast['tables']
-        if len(class_names) > 0:
+        if len(class_names) > 1:
             raise ValueError('queries only support a single model class')
 
         self.model_class = self._get_model_class(class_names[0])
         logger.debug('FROM: %s -> %s' % (class_names, self.model_class))
+
+        criteria = self._eval_expr(ast.where[0])
+        logger.debug('WHERE: %s' % criteria)
+
         query = self.session.query(self.model_class)
-
-        where_expr = self._eval_expr(ast.where[0])
-        logger.debug('WHERE: %s' % where_expr)
-
-        query = query.filter(where_expr)
-
+        query = query.filter(criteria)
         return query
+
+    def _get_model_class(self, class_name):
+        klass = self.model_scope[class_name]
+        if not inspect.isclass(klass):
+            raise ValueError('%s is not a class' % class_name)
+
+        return klass
 
     def _eval_expr(self, expr):
         # TODO: type checking

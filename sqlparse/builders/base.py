@@ -1,5 +1,11 @@
 import inspect
+import logging
 from abc import ABCMeta, abstractmethod
+
+import sqlparse
+import pyparsing
+
+logger = logging.getLogger(__name__)
 
 
 class QueryBuilder(object):
@@ -11,7 +17,7 @@ class QueryBuilder(object):
     def __init__(self, session, model_scope):
         self.session = session
         self.model_scope = model_scope
-        self.model_classes = []
+        #self.model_classes = []
 
     @abstractmethod
     def parse_and_build(self, query_string):
@@ -25,7 +31,7 @@ class QueryBuilder(object):
     def _parse(self, query_string):
         try:
             #logger.debug('Parsing: %s' % queryString)
-            return sqlparse.parseString(query_string)
+            ast = sqlparse.parseString(query_string)
         except pyparsing.ParseException, err:
             msg = [
                 'Parse Error: %s' % err,
@@ -35,12 +41,7 @@ class QueryBuilder(object):
             logger.error('\n'.join(msg))
             raise
 
+        return ast
+
     def _is_primitive(self, obj):
         return isinstance(obj, self._primitives)
-
-    def _get_model_class(self, class_name):
-        klass = self.model_scope[class_name]
-        if not inspect.isclass(klass):
-            raise ValueError('%s is not a class' % class_name)
-
-        return klass

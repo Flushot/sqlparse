@@ -9,9 +9,13 @@ from pyparsing import ParseException
 import sqlparse
 
 
+class BuilderTestCase(unittest.TestCase):
+    pass
+
+
 class ParserTestCase(unittest.TestCase):
     # Print results XML to console?
-    PRINT_PARSE_RESULTS = bool(os.environ.get('PRINT_PARSE_RESULTS', True))
+    PRINT_PARSE_RESULTS = bool(os.environ.get('PRINT_PARSE_RESULTS', False))
 
     def assertParses(self, inputStr, expectError=False):
         """
