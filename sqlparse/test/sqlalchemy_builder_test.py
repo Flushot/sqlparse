@@ -1,5 +1,6 @@
 import itertools
 import logging
+import json
 
 import sqlalchemy.orm
 import sqlalchemy.ext.declarative
@@ -73,7 +74,7 @@ class SqlAlchemyQueryBuilderTest(BuilderTestCase):
             """)
 
         results = query.all()
-        #for user in results:
-        #    logger.info(user)
+        for user in results:
+            print user.__dict__
 
         self.assertEquals(4, len(results))

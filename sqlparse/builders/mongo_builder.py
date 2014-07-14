@@ -65,13 +65,13 @@ class MongoQueryBuilder(QueryBuilder):
 
     def _eval_expr(self, expr):
         # TODO: type checking
-        if isinstance(expr, sqlparse.sqlparse.UnaryOperator):
+        if isinstance(expr, sqlparse.opers.UnaryOperator):
             oper = self._unary_operators.get(expr.op)
             if oper is None:
                 raise ValueError('unknown unary operator: %s' % expr.op)
             return oper(self._eval_expr(expr.rhs))
 
-        elif isinstance(expr, sqlparse.sqlparse.BinaryOperator):
+        elif isinstance(expr, sqlparse.opers.BinaryOperator):
             oper = self._binary_operators.get(expr.op)
             if oper is None:
                 raise ValueError('unknown binary operator: %s' % expr.op)
@@ -90,7 +90,6 @@ class MongoQueryBuilder(QueryBuilder):
                 return expr[1:-1]
             else:
                 # identifier (assume prop on model)
-                # TODO: ensure expr is a mapped property that can be queried
                 return expr
 
         elif self._is_primitive(expr):

@@ -31,11 +31,12 @@ class MongoQueryBuilderTest(BuilderTestCase):
             ]
         }
 
-        #collection.reset()
-        for first_name, last_name in itertools.product(names['first'], names['last']):
+        for idx, (first_name, last_name) in enumerate(itertools.product(names['first'], names['last'])):
             self.collection.insert({
+                '_id': str(idx),
                 'first_name': first_name,
-                'last_name': last_name
+                'last_name': last_name,
+                'is_active': (first_name == 'Chris')
             })
 
     def tearDown(self):
@@ -94,4 +95,7 @@ class MongoQueryBuilderTest(BuilderTestCase):
         }, query)
 
         results = self.collection.find(query, options)
+        for result in results:
+            print json.dumps(result)
+
         self.assertEquals(4, results.count())
