@@ -7,6 +7,8 @@ goal is to keep it compatible with ANSI SQL.
 
 ## Tests
 
+<a href="https://travis-ci.org/Flushot/sqlparse/builds"><img src="https://travis-ci.org/Flushot/sqlparse.svg" data-bindattr-25="25" title="Build Status Images" border="0"></a>
+
 To run unit tests, run:
 
     `./setup.py test` or `./sqlparse.py`
