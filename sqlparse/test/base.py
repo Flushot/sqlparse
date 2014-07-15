@@ -40,7 +40,7 @@ class ParserTestCase(unittest.TestCase):
                 print
                 print inputStr
 
-            tokens = sqlparse.parseString(inputStr)
+            tokens = sqlparse.parse_string(inputStr)
             if self.PRINT_PARSE_RESULTS and not expectError:
                 print tokens.asXML('query')
                 #print tokens.where.dump()

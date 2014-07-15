@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 class SqlAlchemyQueryBuilder(QueryBuilder):
+    """
+    Builds a SqlAlchemy query from a SQL query
+    """
     _binary_operators = {
         '=':   operator.eq,
         '!=':  operator.ne,
@@ -27,7 +30,8 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
         '||':  sqlalchemy.or_,
         'xor': operator.xor,
         '^':   operator.xor,
-        #'in':  sqlalchemy.in_,
+        'in':  lambda lhs, rhs: lhs.in_(rhs),
+        'between': lambda lhs, rhs: lhs.between(rhs.begin, rhs.end),
 
         '+':   operator.add,
         '-':   operator.sub,
@@ -77,13 +81,13 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
         if isinstance(expr, sqlparse.opers.UnaryOperator):
             oper = self._unary_operators.get(expr.op)
             if oper is None:
-                raise ValueError('unknown unary operator: %s' % expr.op)
+                raise ValueError('Unary %s operator is not supported in SqlAlchemy dialect' % expr.op)
             return oper(self._eval_expr(expr.rhs))
 
         elif isinstance(expr, sqlparse.opers.BinaryOperator):
             oper = self._binary_operators.get(expr.op)
             if oper is None:
-                raise ValueError('unknown binary operator: %s' % expr.op)
+                raise ValueError('Binary %s operator is not supported in SqlAlchemy dialect' % expr.op)
             return oper(self._eval_expr(expr.lhs), self._eval_expr(expr.rhs))
 
         # elif isinstance(expr, sqlparse.sqlparse.ListValue):
@@ -101,7 +105,7 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
                 # identifier (assume prop on model)
                 prop = getattr(self.model_class, expr)
                 if str(expr) not in set([p.key for p in self.model_class.__mapper__.iterate_properties]):
-                    raise ValueError('property "%s" is not mapped and can not be queried' % expr)
+                    raise ValueError('%s property is not a mapped relation, and can not be queried with SqlAlchemy' % expr)
                 return prop
 
         elif self._is_primitive(expr):
@@ -109,4 +113,4 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
             return expr
 
         else:
-            raise ValueError('unknown expression type: %s' % type(expr))
+            raise ValueError('Unknown expression type: %s' % type(expr))

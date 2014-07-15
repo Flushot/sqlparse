@@ -31,7 +31,7 @@ class QueryBuilder(object):
     def _parse(self, query_string):
         try:
             #logger.debug('Parsing: %s' % queryString)
-            ast = sqlparse.parseString(query_string)
+            ast = sqlparse.parse_string(query_string)
         except pyparsing.ParseException, err:
             msg = [
                 'Parse Error: %s' % err,

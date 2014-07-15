@@ -7,11 +7,11 @@ __version__ = '0.2.0'
 __all__ = [
     'builders',
     'opers',
-    'parseString'
+    'parse_string'
 ]
 
 
-def parseString(query_string):
+def parse_string(query_string):
     """
     Parses :query_string: into an AST
     """

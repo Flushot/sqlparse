@@ -13,47 +13,63 @@ logger = logging.getLogger(__name__)
 
 
 class MongoQueryBuilder(QueryBuilder):
+    """
+    Builds a MongoDB query from a SQL query
+    """
+    # mongo doesn't have an xor operator
+    _xor_operator = lambda lhs, rhs: {
+            '$and': [
+                { '$or': [ lhs, rhs ] },
+                { '$and': [
+                    { '$not': lhs },
+                    { '$not': rhs }
+                ]}
+            ]}
+
     _binary_operators = {
         '=':   lambda lhs, rhs: { lhs: rhs },
-        '!=':  lambda lhs, rhs: { lhs: { "$ne": rhs } },
-        '<>':  lambda lhs, rhs: { lhs: { "$ne": rhs } },
-        '<':   lambda lhs, rhs: { lhs: { "$lt": rhs } },
-        '<=':  lambda lhs, rhs: { lhs: { "$lte": rhs } },
-        '>':   lambda lhs, rhs: { lhs: { "$gt": rhs } },
-        '>=':  lambda lhs, rhs: { lhs: { "$gte": rhs } },
-        'and': lambda lhs, rhs: { "$and": [ lhs, rhs ] },
-        '&&':  lambda lhs, rhs: { "$and": [ lhs, rhs ] },
-        'or':  lambda lhs, rhs: { "$or": [ lhs, rhs ] },
-        '||':  lambda lhs, rhs: { "$or": [ lhs, rhs ] },
-        #'xor': lambda lhs, rhs: { "$xor": [ lhs, rhs ] },
-        #'^':   lambda lhs, rhs: { "$xor": [ lhs, rhs ] },
-        'in':  lambda lhs, rhs: { lhs: { "$in": rhs } },
+        '!=':  lambda lhs, rhs: { lhs: { '$ne': rhs } },
+        '<>':  lambda lhs, rhs: { lhs: { '$ne': rhs } },
+        '<':   lambda lhs, rhs: { lhs: { '$lt': rhs } },
+        '<=':  lambda lhs, rhs: { lhs: { '$lte': rhs } },
+        '>':   lambda lhs, rhs: { lhs: { '$gt': rhs } },
+        '>=':  lambda lhs, rhs: { lhs: { '$gte': rhs } },
+        'and': lambda lhs, rhs: { '$and': [ lhs, rhs ] },
+        '&&':  lambda lhs, rhs: { '$and': [ lhs, rhs ] },
+        'or':  lambda lhs, rhs: { '$or': [ lhs, rhs ] },
+        '||':  lambda lhs, rhs: { '$or': [ lhs, rhs ] },
+        'xor': _xor_operator,
+        '^':   _xor_operator,
+        'in':  lambda lhs, rhs: { lhs: { '$in': rhs } },
 
-        # '+':   operator.add,
-        # '-':   operator.sub,
-        # '*':   operator.mul,
-        # '/':   operator.truediv,
-        # '%':   operator.mod,
-        # '**':  operator.pow,
-        # '<<':  operator.lshift,
-        # '>>':  operator.rshift
+        # mongo doesn't have a between operator
+        'between': lambda lhs, rhs: {
+                '$and': [
+                    { lhs: { '$gte': rhs.begin } },
+                    { lhs: { '$lte': rhs.end } }
+                ]
+            },
+        #'like': lambda lhs, rhs: { lhs: { "$regex": rhs } }
+
+        '%':   lambda lhs, rhs: { '$mod': [ lhs, rhs ] }
+
+        # unsupported by mongo: xor between + - * / ** << >>
     }
 
     _unary_operators = {
         '!':   lambda rhs: { "$nor": [ rhs ] },
         'not': lambda rhs: { "$nor": [ rhs ] },
-        # '~':   operator.inv,
-        # '-':   operator.neg,
-        # '+':   operator.pos
+
+        # unsupported by mongo: ~ - +
     }
 
     def parse_and_build(self, query_string):
-        ast = sqlparse.parseString(query_string)
+        ast = sqlparse.parse_string(query_string)
 
         # TODO: support multiple classes and aliases
         class_names = ast['tables']
         if len(class_names) > 1:
-            raise ValueError('queries only support a single model class')
+            raise ValueError('Queries only support a single model class')
 
         self.model_class = class_names[0]
         logger.debug('FROM: %s -> %s' % (class_names, self.model_class))
@@ -68,13 +84,13 @@ class MongoQueryBuilder(QueryBuilder):
         if isinstance(expr, sqlparse.opers.UnaryOperator):
             oper = self._unary_operators.get(expr.op)
             if oper is None:
-                raise ValueError('unknown unary operator: %s' % expr.op)
+                raise ValueError('Unary %s operator is not supported in Mongo dialect' % expr.op)
             return oper(self._eval_expr(expr.rhs))
 
         elif isinstance(expr, sqlparse.opers.BinaryOperator):
             oper = self._binary_operators.get(expr.op)
             if oper is None:
-                raise ValueError('unknown binary operator: %s' % expr.op)
+                raise ValueError('Binary %s operator is not supported in Mongo dialoect' % expr.op)
             return oper(self._eval_expr(expr.lhs), self._eval_expr(expr.rhs))
 
         # elif isinstance(expr, sqlparse.sqlparse.ListValue):
@@ -97,4 +113,4 @@ class MongoQueryBuilder(QueryBuilder):
             return expr
 
         else:
-            raise ValueError('unknown expression type: %s' % type(expr))
+            raise ValueError('Unknown expression type: %s' % type(expr))
