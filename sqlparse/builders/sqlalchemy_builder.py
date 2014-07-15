@@ -32,6 +32,8 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
         '^':   operator.xor,
         'in':  lambda lhs, rhs: lhs.in_(rhs),
         'between': lambda lhs, rhs: lhs.between(rhs.begin, rhs.end),
+        'like': lambda lhs, rhs: lhs.like(rhs),
+        'ilike': lambda lhs, rhs: lhs.ilike(rhs),
 
         '+':   operator.add,
         '-':   operator.sub,

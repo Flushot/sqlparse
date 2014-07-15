@@ -71,13 +71,13 @@ VAL_UNKNOWN = CaselessLiteral('unknown')
 # ORDER_BY = CaselessLiteral('order by')
 
 # Operators (name is operators.FUNC_NAME)
-OP_EQUAL = Literal('=')#.setParseAction(lambda t: operator.eq)
-OP_VAL_NULLSAFE_EQUAL = Literal('<=>')#.setParseAction(lambda t: operator.eq)
-OP_NOTEQUAL = ( Literal('!=') | Literal('<>') )#.setParseAction(lambda t: operator.ne)
-OP_GT = Literal('>').setName('gt')#.setParseAction(lambda t: operator.gt)
-OP_LT = Literal('<').setName('lt')#.setParseAction(lambda t: operator.lt)
-OP_GTE = Literal('>=').setName('ge')#.setParseAction(lambda t: operator.ge)
-OP_LTE = Literal('<=').setName('le')#.setParseAction(lambda t: operator.le)
+OP_EQUAL = Literal('=')
+OP_VAL_NULLSAFE_EQUAL = Literal('<=>')
+OP_NOTEQUAL = ( Literal('!=') | Literal('<>') )
+OP_GT = Literal('>').setName('gt')
+OP_LT = Literal('<').setName('lt')
+OP_GTE = Literal('>=').setName('ge')
+OP_LTE = Literal('<=').setName('le')
 OP_IN = CaselessLiteral('in')  # sqlalchemy property: lhs.in_(rhs)
 OP_LIKE = CaselessLiteral('like')  # sqlalchemy property: lhs.like(rhs), lhs.ilike(rhs)
 OP_IS = CaselessLiteral('is')  # sqlalchemy or_(lhs == rhs, lhs == None)
@@ -102,11 +102,10 @@ OP_BETWEEN_AND = Suppress( CaselessLiteral('and') )
 # BITOP_XOR = Literal('^')
 
 # Conjugates
-LOGOP_AND = ( CaselessLiteral('and') | CaselessLiteral('&&') )#.setParseAction(lambda t: sqlalchemy.and_)
-LOGOP_OR =  ( CaselessLiteral('or')  | CaselessLiteral('||') )#.setParseAction(lambda t: sqlalchemy.or_)
-LOGOP_NOT = ( CaselessLiteral('not') | CaselessLiteral('!')  )#.setParseAction(lambda t: sqlalchemy.not_)  # unary
-LOGOP_XOR = CaselessLiteral('xor')#.setParseAction(lambda t: lambda a, b:
-    #sqlalchemy.and_(sqlalchemy.or_(a, b), sqlalchemy.not_(sqlalchemy.and_(a, b))))
+LOGOP_AND = ( CaselessLiteral('and') | CaselessLiteral('&&') )
+LOGOP_OR =  ( CaselessLiteral('or')  | CaselessLiteral('||') )
+LOGOP_NOT = ( CaselessLiteral('not') | CaselessLiteral('!')  )
+LOGOP_XOR = CaselessLiteral('xor')
 
 # SELECT Statement Operators
 SELECTOP_EXCEPT = CaselessLiteral('except')

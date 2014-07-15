@@ -2,13 +2,53 @@
 
 Parses and transforms SQL queries.
 
+This project started as an experiement in writing parsers, and still remains that way.
+It's incomplete, so please don't use it in production code.
+
+## What's supported already?
+
+* Parser
+    * Grammar: SELECT ... FROM ... [ WHERE ... ] [ ORDER BY ... ]
+    * Where clause expression tree
+    * Source tables/models (in FROM)
+    * Projections
+
+* Query builder
+    * Transform SQL into Mongo queries
+    * Transform SQL into SqlAlchemy queries
+
+## Roadmap
+
+Here's a list of features that are currently in the plans for development:
+
+* Grammar
+    * Aliases
+    * Joins
+    * Unions
+    * Pivots
+    * Functions
+    * Bitwise operators
+    * Math expressions
+    * GROUP BY and HAVING
+    * LIMIT and OFFSET
+    * EXCEPT and INTERSECT
+
+* Parser
+    * Null-safe equality
+    * Type checking
+    * Logical optimizations
+    * Multiple tables/models
+
+* General
+    * Better test coverage
+
 ## Tests
 
 <a href="https://travis-ci.org/Flushot/sqlparse/builds"><img src="https://travis-ci.org/Flushot/sqlparse.svg" data-bindattr-25="25" title="Build Status Images" border="0"></a>
 
 To run unit tests:
 
-    `./setup.py test` or `make test`
+`./setup.py test` or `make test`
 
 ## Examples
 

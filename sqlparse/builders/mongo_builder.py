@@ -49,7 +49,10 @@ class MongoQueryBuilder(QueryBuilder):
                     { lhs: { '$lte': rhs.end } }
                 ]
             },
+
+        # TODO: convert like/ilike wildcards to regex
         #'like': lambda lhs, rhs: { lhs: { "$regex": rhs } }
+        #'ilike': ...
 
         '%':   lambda lhs, rhs: { '$mod': [ lhs, rhs ] }
 
@@ -57,6 +60,8 @@ class MongoQueryBuilder(QueryBuilder):
     }
 
     _unary_operators = {
+
+        # $nor w/ single arg is used instead of $not (which can only be used as a RHS binary operator)
         '!':   lambda rhs: { "$nor": [ rhs ] },
         'not': lambda rhs: { "$nor": [ rhs ] },
 
