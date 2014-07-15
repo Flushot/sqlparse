@@ -2,22 +2,19 @@
 
 Parses and transforms SQL queries.
 
-This is a custom dialect of SQL for experimentation purposes. It isn't emulating any particular database server's implementation, but a design goal is to keep it compatible with ANSI SQL.
-
 ## Tests
 
 <a href="https://travis-ci.org/Flushot/sqlparse/builds"><img src="https://travis-ci.org/Flushot/sqlparse.svg" data-bindattr-25="25" title="Build Status Images" border="0"></a>
 
-To run unit tests, run:
+To run unit tests:
 
-    `./setup.py test` or `./sqlparse.py`
+    `./setup.py test` or `make test`
 
 ## Examples
 
-Parsing SQL query into an abstract syntax tree:
+Parsing SQL query into a <a href="https://pythonhosted.org/pyparsing/pyparsing.pyparsing.ParseResults-class.html">pyparsing</a> parse tree:
 
-    >>> import sqlparse
-    >>> ast = sqlparse.sqlQuery.parseString('select a from b where c = 1 and d = 2 or e = "f"')
+    >>> ast = sqlparse.parseString('select a from b where c = 1 and d = 2 or e = "f"')
     >>> print ast.asXML('query')
     <query>
       <columns>
@@ -28,10 +25,13 @@ Parsing SQL query into an abstract syntax tree:
       </tables>
       <where>(and (= c 1) (or (= d 2) (= e "f")))</where>
     </query>
+    >>> print ast.tables.asXML('tables')
+    <tables>
+      <table>b</table>
+    </tables>    
 
-Converting a SQL query into a SqlAlchemy query:
+Building a SqlAlchemy query object from a parsed SQL query:
 
-    >>> import sqlparse
     >>> builder = sqlparse.bulders.SqlAlchemyQueryBuilder(sa_session, globals())
     >>> sqlalchemy_query = builder.parse_and_build("""
     ...     select * from User where
@@ -42,9 +42,8 @@ Converting a SQL query into a SqlAlchemy query:
     >>> for result in sqlalchemy_query.all():
     ...     # do something
 
-Converting a SQL query into a MongoDB query:
+Building a MongoDB query object from a parsed SQL query:
 
-    >>> import sqlparse, json
     >>> builder = sqlparse.builders.MongoQueryBuilder(pymongo_database)
     >>> mongo_query = builder.parse_and_build("""
     ...     select * from User where
@@ -93,14 +92,14 @@ Converting a SQL query into a MongoDB query:
 
 ## License
 
-Copyright 2014 Chris Lyon
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+    Copyright 2014 Chris Lyon
+    
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+    
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.

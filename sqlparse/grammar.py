@@ -283,6 +283,3 @@ sqlQuery = selectStmts + StringEnd()
 commentStart = Suppress( oneOf('-- #') )
 comment = commentStart + restOfLine
 sqlQuery.ignore(comment)
-
-def parseString(query):
-    return sqlQuery.parseString(query)
