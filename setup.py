@@ -16,19 +16,23 @@ setup(
 
     author='Chris Lyon',
     author_email='flushot@gmail.com',
-    description='SQL parser and query builders',
+
+    description='SQL parser and query builder',
     long_description=open('README.md').read(),
+
     url='https://github.com/Flushot/sqlparse',
+
     license='Apache License 2.0',
     classifiers=[
+        'Intended Audience :: Developers'
         'Development Status :: 2 - Pre-Alpha',
         'License :: OSI Approved :: Apache Software License',
-        'Intended Audience :: Developers'
     ],
 
     install_requires=[
-        'pyparsing'
-        #'sqlalchemy'
+        'pyparsing',
+        'sqlalchemy',
+        'pymongo'
     ],
 
     test_suite='sqlparse'

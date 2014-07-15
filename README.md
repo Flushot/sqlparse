@@ -2,8 +2,8 @@
 
 Parses and transforms SQL queries.
 
-This project started as an experiement in writing parsers, and still remains that way.
-It's incomplete, so please don't use it in production code.
+This project started is an experiement, and isn't in a stable state.
+Please don't use it in production code yet.
 
 ## What's supported already?
 
@@ -41,6 +41,7 @@ Here's a list of features that are currently in the plans for development:
 
 * General
     * Better test coverage
+    * Sphinx documentation
 
 ## Tests
 
@@ -129,6 +130,9 @@ Building a MongoDB query object from a parsed SQL query:
         ]
     }
 
+## Documentation
+
+No documentation exists yet, except for what you see in this README file.
 
 ## License
 
