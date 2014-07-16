@@ -21,8 +21,8 @@ class MongoQueryBuilder(QueryBuilder):
             '$and': [
                 { '$or': [ lhs, rhs ] },
                 { '$and': [
-                    { '$not': lhs },
-                    { '$not': rhs }
+                    { '$nor': [ lhs ] },
+                    { '$nor': [ rhs ] }
                 ]}
             ]}
 
