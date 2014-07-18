@@ -65,7 +65,7 @@ class SqlAlchemyQueryBuilderTest(BuilderTestCase):
         pass
 
     def test_SELECT(self):
-        builder = SqlAlchemyQueryBuilder(self.session, self.model_scope)
+        builder = SqlAlchemyQueryBuilder(self.session, model_scope=self.model_scope)
         query = builder.parse_and_build("""
             select * from User where
                 not (last_name = 'Jacob' or

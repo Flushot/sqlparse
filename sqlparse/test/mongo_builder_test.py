@@ -44,7 +44,7 @@ class MongoQueryBuilderTest(BuilderTestCase):
         self.client = None
 
     def test_SELECT(self):
-        builder = MongoQueryBuilder(self.db, self.db)
+        builder = MongoQueryBuilder()
         query, options = builder.parse_and_build("""
             select * from User where
                 not (last_name = 'Jacob' or
@@ -54,8 +54,8 @@ class MongoQueryBuilderTest(BuilderTestCase):
 
         self.assertEquals('User', builder.model_class)
 
-        #print json.dumps(query, indent=4)
-        print json.dumps(query)
+        self.assertEquals([], builder.fields)
+        self.assertDictEqual({}, options)
 
         self.assertDictEqual({
             "$and": [
@@ -63,21 +63,11 @@ class MongoQueryBuilderTest(BuilderTestCase):
                     "$nor": [
                         {
                             "$or": [
-                                {
-                                    "last_name": "Jacob"
-                                },
+                                { "last_name": "Jacob" },
                                 {
                                     "$and": [
-                                        {
-                                            "first_name": {
-                                                "$ne": "Chris"
-                                            }
-                                        },
-                                        {
-                                            "last_name": {
-                                                "$ne": "Lyon"
-                                            }
-                                        }
+                                        { "first_name": { "$ne": "Chris" } },
+                                        { "last_name": { "$ne": "Lyon" } }
                                     ]
                                 }
                             ]
@@ -86,16 +76,14 @@ class MongoQueryBuilderTest(BuilderTestCase):
                 },
                 {
                     "$nor": [
-                        {
-                            "is_active": 1
-                        }
+                        { "is_active": 1 }
                     ]
                 }
             ]
         }, query)
 
         results = self.collection.find(query, options)
-        for result in results:
-            print json.dumps(result)
+        # for result in results:
+        #     print json.dumps(result)
 
         self.assertEquals(4, results.count())

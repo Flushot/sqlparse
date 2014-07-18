@@ -24,7 +24,7 @@ from pyparsing import \
     restOfLine, quotedString, delimitedList, \
     ParseResults, ParseException
 
-from .opers import *
+from .nodes import *
 
 ################################
 # Terminals
@@ -134,14 +134,14 @@ sign = PLUS | MINUS
 
 selectStmt = Forward()  # SELECT
 
-identifier = Word( alphas, alphanums + '_$' ).setName('identifier')  # a, A1, a_1$
+identifier = Word( alphas, alphanums + '_$' )('identifier')  # a, A1, a_1$
 #alias = ( Optional(AS) + identifier ).setName('alias')
 
 # Projection
-columnName = delimitedList( identifier, DOT, combine=True )('column')  # TODO: x AS y, x y, x `y`, x 'y', `x`, 'x'
-columnNameList = Group( delimitedList( STAR | columnName ) )
-tableName = delimitedList( identifier, DOT, combine=True )('table')
-tableNameList = Group( delimitedList( tableName ) )
+columnName = delimitedList( identifier, DOT, combine=True ).setParseAction(Identifier)('column')  # TODO: x AS y, x y, x `y`, x 'y', `x`, 'x'
+columnNameList = Group( delimitedList( STAR | columnName ) ).setParseAction(ListValue)
+tableName = delimitedList( identifier, DOT, combine=True ).setParseAction(Identifier)('table')
+tableNameList = Group( delimitedList( tableName ) ).setParseAction(ListValue)
 
 whereExpr = Forward()  # WHERE
 
@@ -160,6 +160,7 @@ likeOp = (
     ( Optional(LOGOP_NOT) + OP_LIKE )
     )
 betweenOp = Optional(LOGOP_NOT) + OP_BETWEEN  # [ NOT ] BETWEEN
+stringValue = quotedString.setParseAction(StringValue)
 realNumber = (
     Combine(
         Optional(sign) + (
@@ -169,19 +170,19 @@ realNumber = (
             # negative exp
             ( Word(nums) + Optional( E + Optional(MINUS) + Word(nums) ) )
             )
-        ).setParseAction( lambda token: float(token[0]) )
+        ).setParseAction(RealValue)
     ).setName('real')  # .1, 1.2, 1.2e3, -1.2e+3, 1.2e-3
 intNumber = (
     Combine(
         Optional(sign) +
         Word(nums)
         #Optional( E + Optional(PLUS) + Word(nums) )  # python int() doesn't grok this
-        ).setParseAction( lambda token: int(token[0]) )
+        ).setParseAction(IntegerValue)
     ).setName('int')  # -1 0 1 23
 number = intNumber ^ realNumber
 atom = (
     number |
-    quotedString.setName('string').setParseAction( lambda t: '"%s"' % t[0][1:-1] )  # normalize quotes
+    stringValue('string')  # normalize quotes
     )
 groupSubSelectStmt = Group( R_PAREN + selectStmt + R_PAREN )  # todo: subselect must have a LIMIT in this context
 columnRval = (
@@ -190,7 +191,7 @@ columnRval = (
     groupSubSelectStmt('query')
     )
 likePattern = (
-    quotedString('value')
+    stringValue('value')
     )
 inOperand = Suppress(L_PAREN) + Group(delimitedList(columnRval))('value').setParseAction(ListValue) + Suppress(R_PAREN)
 # TODO: Functions: sum, avg, count, max, min, ifnull/isnull, if

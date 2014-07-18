@@ -3,49 +3,45 @@ import operator
 import logging
 import inspect
 
-import pyparsing
 import sqlalchemy
 
 import sqlparse
+from sqlparse import nodes
+from sqlparse.visitors import IdentifierAndValueVisitor
 from .base import QueryBuilder
 
 logger = logging.getLogger(__name__)
 
 
-class SqlAlchemyQueryBuilder(QueryBuilder):
-    """
-    Builds a SqlAlchemy query from a SQL query
-    """
-    _binary_operators = {
-        '=':   operator.eq,
-        '!=':  operator.ne,
-        '<>':  operator.ne,
-        '<':   operator.lt,
-        '<=':  operator.le,
-        '>':   operator.gt,
-        '>=':  operator.ge,
+class SqlAlchemyQueryVisitor(IdentifierAndValueVisitor):
+    BINARY_OPERATORS = {
+        '=': operator.eq,
+        '!=': operator.ne,
+        '<>': operator.ne,
+        '<': operator.lt,
+        '<=': operator.le,
+        '>': operator.gt,
+        '>=': operator.ge,
         'and': sqlalchemy.and_,
-        '&&':  sqlalchemy.and_,
-        'or':  sqlalchemy.or_,
-        '||':  sqlalchemy.or_,
-        'xor': operator.xor,
-        '^':   operator.xor,
-        'in':  lambda lhs, rhs: lhs.in_(rhs),
+        '&&': sqlalchemy.and_,
+        'or': sqlalchemy.or_,
+        '||': sqlalchemy.or_,
+        'in': lambda lhs, rhs: lhs.in_(rhs),
         'between': lambda lhs, rhs: lhs.between(rhs.begin, rhs.end),
         'like': lambda lhs, rhs: lhs.like(rhs),
-        'ilike': lambda lhs, rhs: lhs.ilike(rhs),
+        #'ilike': lambda lhs, rhs: lhs.ilike(rhs),  # TODO: implement in grammar
 
-        '+':   operator.add,
-        '-':   operator.sub,
-        '*':   operator.mul,
-        '/':   operator.truediv,
-        '%':   operator.mod,
-        '**':  operator.pow,
-        '<<':  operator.lshift,
-        '>>':  operator.rshift
+        '+': operator.add,
+        '-': operator.sub,
+        '*': operator.mul,
+        '/': operator.truediv,
+        '%': operator.mod,
+        '**': operator.pow,
+        '<<': operator.lshift,
+        '>>': operator.rshift
     }
 
-    _unary_operators = {
+    UNARY_OPERATORS = {
         '!':   sqlalchemy.not_,
         'not': sqlalchemy.not_,
         '~':   operator.inv,
@@ -53,66 +49,104 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
         '+':   operator.pos
     }
 
+    def __init__(self, model_class):
+        self.model_class = model_class
+
+    def visit_UnaryOperator(self, node):
+        op_func = self.UNARY_OPERATORS.get(node.name)
+        if op_func is None:
+            raise ValueError('SqlAlchemy visitor does not implement "%s" unary operator')
+
+        return op_func(self.visit(node.rhs))
+
+    def visit_BinaryOperator(self, node):
+        # XOR operator
+        if node.name in ('xor', '^'):
+            # SqlAlchemy doesn't support XOR operator
+            lhs_node = self.visit(node.lhs)
+            rhs_node = self.visit(node.rhs)
+            return sqlalchemy.and_(
+                sqlalchemy.or_(lhs_node, rhs_node),
+                sqlalchemy.not_(
+                    sqlalchemy.and_(lhs_node, rhs_node)))
+
+        # Regular operator
+        else:
+            op_func = self.BINARY_OPERATORS.get(node.name)
+            if op_func is None:
+                raise ValueError('Mongo visitor does not implement "%s" binary operator' % node.name)
+
+            return op_func(self.visit(node.lhs), self.visit(node.rhs))
+
+    def visit_Identifier(self, node):
+        # Ensure property is mapped in SqlAlchemy (and thus can be queried)
+        mapped_properties = set([p.key for p in self.model_class.__mapper__.iterate_properties])
+        if node.name not in mapped_properties:
+            raise ValueError('%s property is not a mapped relation, and can not be queried with SqlAlchemy' % node.name)
+
+        # Class property that can be used in SqlAlchemy query expressions
+        return getattr(self.model_class, node.name)
+
+
+class SqlAlchemyQueryBuilder(QueryBuilder):
+    """
+    Builds a SqlAlchemy query from a SQL query
+    """
+    def __init__(self, session, model_scope=None):
+        super(SqlAlchemyQueryBuilder, self).__init__()
+
+        self.session = session
+        # TODO: validate session
+        # TODO: figure out if there's a way to do detached queries w/o depending on session (like hibernate)
+
+        if model_scope is None:
+            model_scope = globals()
+
+        self.model_scope = model_scope
+
     def parse_and_build(self, query_string):
-        ast = self._parse(query_string)
+        parse_tree = self._parse(query_string)
 
-        # TODO: support multiple classes and aliases
-        class_names = ast['tables']
-        if len(class_names) > 1:
-            raise ValueError('queries only support a single model class')
+        self.model_class = self._get_model_class(parse_tree)
 
-        self.model_class = self._get_model_class(class_names[0])
-        logger.debug('FROM: %s -> %s' % (class_names, self.model_class))
-
-        criteria = self._eval_expr(ast.where[0])
-        logger.debug('WHERE: %s' % criteria)
-
+        self.fields = self._get_projection(parse_tree)
         query = self.session.query(self.model_class)
-        query = query.filter(criteria)
+
+        criteria = self._get_filter_criteria(self.model_class, parse_tree)
+        if criteria is not None:
+            query = query.filter(criteria)
+
         return query
 
-    def _get_model_class(self, class_name):
-        klass = self.model_scope[class_name]
-        if not inspect.isclass(klass):
-            raise ValueError('%s is not a class' % class_name)
+    def _get_model_class(self, parse_tree):
+        class_names = [v.name for v in parse_tree.tables.values]
+        if len(class_names) == 0:
+            raise ValueError('Model name required in FROM clause')
+
+        # TODO: support multiple classes and aliases
+        if len(class_names) > 1:
+            raise NotImplementedError('SqlAlchemy queries currently only support a single model class')
+
+        class_name = class_names[0]
+        #print 'FROM: %s' % class_name
+
+        klass = self.model_scope.get(class_name)
+        if klass is None:
+            raise ValueError('Model class %s not found in model_scope' % class_name)
+        elif not inspect.isclass(klass):
+            raise ValueError('Model class %s is not a class' % class_name)
 
         return klass
 
-    def _eval_expr(self, expr):
-        # TODO: type checking
-        if isinstance(expr, sqlparse.opers.UnaryOperator):
-            oper = self._unary_operators.get(expr.op)
-            if oper is None:
-                raise ValueError('Unary %s operator is not supported in SqlAlchemy dialect' % expr.op)
-            return oper(self._eval_expr(expr.rhs))
+    def _get_projection(self, parse_tree):
+        projection = IdentifierAndValueVisitor().visit(parse_tree.columns)
+        #print 'SELECT: %s' % projection
+        if not isinstance(projection, list):
+            raise ValueError('SELECT must be a list')
 
-        elif isinstance(expr, sqlparse.opers.BinaryOperator):
-            oper = self._binary_operators.get(expr.op)
-            if oper is None:
-                raise ValueError('Binary %s operator is not supported in SqlAlchemy dialect' % expr.op)
-            return oper(self._eval_expr(expr.lhs), self._eval_expr(expr.rhs))
+        return projection
 
-        # elif isinstance(expr, sqlparse.sqlparse.ListValue):
-        #     #print 'list: %s' % expr.values
-        #     return expr.values
-        #
-        # elif isinstance(expr, sqlparse.sqlparse.RangeValue):
-        #     raise ValueError('range values not implemeneted yet')
-
-        elif type(expr) in (str, unicode):
-            if len(expr) > 2 and expr[0] in ('"', "'"):
-                # string
-                return expr[1:-1]
-            else:
-                # identifier (assume prop on model)
-                prop = getattr(self.model_class, expr)
-                if str(expr) not in set([p.key for p in self.model_class.__mapper__.iterate_properties]):
-                    raise ValueError('%s property is not a mapped relation, and can not be queried with SqlAlchemy' % expr)
-                return prop
-
-        elif self._is_primitive(expr):
-            #print 'prim: %s' % expr
-            return expr
-
-        else:
-            raise ValueError('Unknown expression type: %s' % type(expr))
+    def _get_filter_criteria(self, model_class, parse_tree):
+        filter_criteria =  SqlAlchemyQueryVisitor(model_class).visit(parse_tree.where[0])
+        print 'WHERE: %s' % filter_criteria
+        return filter_criteria

@@ -14,23 +14,17 @@ class QueryBuilder(object):
     """
     _primitives = (int, float, str, unicode, bool)
 
-    def __init__(self, session, model_scope):
-        self.session = session
-        self.model_scope = model_scope
-        #self.model_classes = []
+    def __init__(self):
+        self.model_class = None  # deprecated
+        self.model_classes = []
+        self.fields = []
 
     @abstractmethod
     def parse_and_build(self, query_string):
-        """
-
-        :param query_string:
-        :return:
-        """
         pass
 
     def _parse(self, query_string):
         try:
-            #logger.debug('Parsing: %s' % queryString)
             ast = sqlparse.parse_string(query_string)
         except pyparsing.ParseException, err:
             msg = [
@@ -42,6 +36,3 @@ class QueryBuilder(object):
             raise
 
         return ast
-
-    def _is_primitive(self, obj):
-        return isinstance(obj, self._primitives)

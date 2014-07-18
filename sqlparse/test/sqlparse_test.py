@@ -30,8 +30,8 @@ class TestSqlQueryGrammar(ParserTestCase):
         self.assertIsNotNone(results)
         for result in results:
             self.assertIsNotNone( result )
-            self.assertTrue( len(result.tables) > 1 )
-            self.assertTrue( len(result.columns) > 0 )
+            self.assertTrue( len(result.tables.values) > 1 )
+            self.assertTrue( len(result.columns.values) > 0 )
 
         # invalid queries
         self.assertParses([

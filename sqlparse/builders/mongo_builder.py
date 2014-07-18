@@ -1,121 +1,156 @@
 #!/usr/bin/env python
-import operator
 import logging
-import inspect
-
-import pyparsing
-import pymongo
+import json
 
 import sqlparse
+from sqlparse import nodes
+from sqlparse.visitors import IdentifierAndValueVisitor
 from .base import QueryBuilder
 
 logger = logging.getLogger(__name__)
+
+
+class MongoQueryVisitor(IdentifierAndValueVisitor):
+    # Map of SQL operators to MongoDB equivalents
+    # TODO: Create node classes for these operators, rather than relying on operator.name
+    OPERATORS = {
+        'not': '$nor',
+        '!': '$nor',
+        '!=': '$ne',
+        '<>': '$ne',
+        '<': '$lt',
+        '<=': '$lte',
+        '>': '$gt',
+        '>=': '$gte',
+        'and': '$and',
+        '&&': '$and',
+        'or': '$or',
+        '||': '$or',
+        'in': '$in',
+        'mod': '$mod',
+        '%': '$mod',
+        'like': '$regex',
+        # Mongo doesn't support: + - * / ** << >>
+    }
+
+    def visit_UnaryOperator(self, node):
+        op_name = self.OPERATORS.get(node.name)
+        if op_name is None:
+            raise ValueError('Mongo visitor does not implement "%s" unary operator')
+
+        rhs_node = self.visit(node.rhs)
+        if not isinstance(rhs_node, nodes.ListValue):
+            rhs_node = [ rhs_node ]
+
+        return { op_name: rhs_node }
+
+    def visit_BinaryOperator(self, node):
+        lhs_node = self.visit(node.lhs)
+        rhs_node = self.visit(node.rhs)
+
+        if node.name == '=':
+            # Mongo treats equality struct different from other binary operators
+            if isinstance(lhs_node, basestring):
+                return { lhs_node: rhs_node }
+            else:
+                raise ValueError('lhs is an expression: %s' % lhs_node)
+
+        elif node.name in ('xor', '^'):
+            # Mongo lacks an XOR operator
+            return {
+                '$and': [
+                    { '$or': [ lhs_node, rhs_node ] },
+                    { '$and': [
+                        { '$nor': [ lhs_node ] },
+                        { '$nor': [ rhs_node ] }
+                    ]}
+                ]}
+
+        elif node.name == 'between':
+            # Mongo lacks a BETWEEN operator
+            return {
+                '$and': [
+                    { lhs_node: { '$gte': rhs_node.begin } },
+                    { lhs_node: { '$lte': rhs_node.end } }
+                ]}
+
+        # Standard binary operator
+        else:
+            op_name = self.OPERATORS.get(node.name)
+            if op_name is None:
+                raise ValueError('Mongo visitor does not implement "%s" binary operator' % node.name)
+
+            # AND and OR have list operands
+            if op_name in ('$and', '$or'):
+                return { op_name: [ lhs_node, rhs_node ] }
+            # Everything else contains a { prop: expr } operand
+            elif isinstance(lhs_node, basestring):
+                return { lhs_node: { op_name: rhs_node } }
+            else:
+                raise ValueError('lhs is an expression: %s' % lhs_node)
 
 
 class MongoQueryBuilder(QueryBuilder):
     """
     Builds a MongoDB query from a SQL query
     """
-    # mongo doesn't have an xor operator
-    _xor_operator = lambda lhs, rhs: {
-            '$and': [
-                { '$or': [ lhs, rhs ] },
-                { '$and': [
-                    { '$nor': [ lhs ] },
-                    { '$nor': [ rhs ] }
-                ]}
-            ]}
-
-    _binary_operators = {
-        '=':   lambda lhs, rhs: { lhs: rhs },
-        '!=':  lambda lhs, rhs: { lhs: { '$ne': rhs } },
-        '<>':  lambda lhs, rhs: { lhs: { '$ne': rhs } },
-        '<':   lambda lhs, rhs: { lhs: { '$lt': rhs } },
-        '<=':  lambda lhs, rhs: { lhs: { '$lte': rhs } },
-        '>':   lambda lhs, rhs: { lhs: { '$gt': rhs } },
-        '>=':  lambda lhs, rhs: { lhs: { '$gte': rhs } },
-        'and': lambda lhs, rhs: { '$and': [ lhs, rhs ] },
-        '&&':  lambda lhs, rhs: { '$and': [ lhs, rhs ] },
-        'or':  lambda lhs, rhs: { '$or': [ lhs, rhs ] },
-        '||':  lambda lhs, rhs: { '$or': [ lhs, rhs ] },
-        'xor': _xor_operator,
-        '^':   _xor_operator,
-        'in':  lambda lhs, rhs: { lhs: { '$in': rhs } },
-
-        # mongo doesn't have a between operator
-        'between': lambda lhs, rhs: {
-                '$and': [
-                    { lhs: { '$gte': rhs.begin } },
-                    { lhs: { '$lte': rhs.end } }
-                ]
-            },
-
-        # TODO: convert like/ilike wildcards to regex
-        #'like': lambda lhs, rhs: { lhs: { "$regex": rhs } }
-        #'ilike': ...
-
-        '%':   lambda lhs, rhs: { '$mod': [ lhs, rhs ] }
-
-        # unsupported by mongo: xor between + - * / ** << >>
-    }
-
-    _unary_operators = {
-
-        # $nor w/ single arg is used instead of $not (which can only be used as a RHS binary operator)
-        '!':   lambda rhs: { "$nor": [ rhs ] },
-        'not': lambda rhs: { "$nor": [ rhs ] },
-
-        # unsupported by mongo: ~ - +
-    }
-
     def parse_and_build(self, query_string):
-        ast = sqlparse.parse_string(query_string)
+        parse_tree = sqlparse.parse_string(query_string)
+        filter_options = {}
 
-        # TODO: support multiple classes and aliases
-        class_names = ast['tables']
-        if len(class_names) > 1:
-            raise ValueError('Queries only support a single model class')
+        # collections
+        self.model_class = self._get_collection_name(parse_tree)
+        self.class_names = [ self.model_class ]
 
-        self.model_class = class_names[0]
-        logger.debug('FROM: %s -> %s' % (class_names, self.model_class))
+        # fields
+        self.fields = self._get_fields_option(parse_tree).keys()
+        if self.fields:
+            filter_options['fields'] = self.fields
 
-        criteria = self._eval_expr(ast.where[0])
-        logger.debug('WHERE: %s' % criteria)
+        return self._get_filter_criteria(parse_tree), filter_options
 
-        return criteria, None
+    def _get_filter_criteria(self, parse_tree):
+        """
+        Filter criteria specified in WHERE
+        """
+        filter_criteria =  MongoQueryVisitor().visit(parse_tree.where[0])
+        #print 'WHERE: %s' % json.dumps(filter_criteria, indent=4)
+        return filter_criteria
 
-    def _eval_expr(self, expr):
-        # TODO: type checking
-        if isinstance(expr, sqlparse.opers.UnaryOperator):
-            oper = self._unary_operators.get(expr.op)
-            if oper is None:
-                raise ValueError('Unary %s operator is not supported in Mongo dialect' % expr.op)
-            return oper(self._eval_expr(expr.rhs))
+    def _get_collection_name(self, parse_tree):
+        """
+        Collections specified in FROM
+        """
+        collections = [unicode(table.name) for table in parse_tree.tables.values]
+        if len(collections) == 0:
+            raise ValueError('Collection name required in FROM clause')
 
-        elif isinstance(expr, sqlparse.opers.BinaryOperator):
-            oper = self._binary_operators.get(expr.op)
-            if oper is None:
-                raise ValueError('Binary %s operator is not supported in Mongo dialoect' % expr.op)
-            return oper(self._eval_expr(expr.lhs), self._eval_expr(expr.rhs))
+        collection = collections[0]
+        #print 'FROM: %s' % collection
 
-        # elif isinstance(expr, sqlparse.sqlparse.ListValue):
-        #     #print 'list: %s' % expr.values
-        #     return expr.values
+        # TODO: parse this as an Identifier instead of a str
+        if not isinstance(collection, basestring):
+            raise ValueError('collection name must be a string')
 
-        # elif isinstance(expr, sqlparse.sqlparse.RangeValue):
-        #     raise ValueError('range values not implemeneted yet')
+        if len(collections) > 1:
+            raise ValueError('Mongo query requires single collection in FROM clause')
 
-        elif type(expr) in (str, unicode):
-            if len(expr) > 2 and expr[0] in ('"', "'"):
-                # string
-                return expr[1:-1]
-            else:
-                # identifier (assume prop on model)
-                return expr
+        return collection
 
-        elif self._is_primitive(expr):
-            #print 'prim: %s' % expr
-            return expr
+    def _get_fields_option(self, parse_tree):
+        """
+        Fields specified in SELECT
+        """
+        fields = IdentifierAndValueVisitor().visit(parse_tree.columns)
+        #print 'SELECT: %s' % fields
+        if not isinstance(fields, list):
+            raise ValueError('SELECT must be a list')
 
-        else:
-            raise ValueError('Unknown expression type: %s' % type(expr))
+        filter_fields = {}
+        for field in fields:
+            if field == '*':
+                return {}
+
+            filter_fields[field] = 1
+
+        return filter_fields
