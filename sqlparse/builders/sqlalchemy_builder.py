@@ -149,7 +149,13 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
         if not isinstance(projection, list):
             raise ValueError('SELECT must be a list')
 
-        return projection
+        fields = []
+        for field in projection:
+            if not isinstance(field, nodes.Identifier):
+                raise NotImplementedError('Only identifiers can be used in SELECT clause')
+            fields.append(field.name)
+
+        return fields
 
     def _get_filter_criteria(self, model_class, parse_tree):
         filter_criteria =  SqlAlchemyQueryVisitor(model_class).visit(parse_tree.where[0])

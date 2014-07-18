@@ -46,16 +46,21 @@ class MongoQueryBuilderTest(BuilderTestCase):
     def test_SELECT(self):
         builder = MongoQueryBuilder()
         query, options = builder.parse_and_build("""
-            select * from User where
-                not (last_name = 'Jacob' or
-                    (first_name != 'Chris' and last_name != 'Lyon')) and
+            select a,b from User where
+                not ( last_name= 'Jacob' or
+                      (first_name !='Chris' and last_name!='Lyon') ) and
                 not is_active = 1
             """)
 
         self.assertEquals('User', builder.model_class)
 
-        self.assertEquals([], builder.fields)
-        self.assertDictEqual({}, options)
+        self.assertEquals(['a', 'b'], builder.fields)
+        self.assertDictEqual({
+            'fields': {
+                'a': 1,
+                'b': 1
+            }
+        }, options)
 
         self.assertDictEqual({
             "$and": [

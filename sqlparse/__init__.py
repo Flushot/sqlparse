@@ -1,12 +1,12 @@
-import builders
-from . import nodes, grammar
+from . import builders, nodes, visitors, grammar
 
 
 __version__ = '0.2.0'
 
 __all__ = [
     'builders',
-    'nodes.py',
+    'nodes',
+    'visitors',
     'parse_string'
 ]
 

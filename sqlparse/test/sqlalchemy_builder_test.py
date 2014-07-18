@@ -67,14 +67,16 @@ class SqlAlchemyQueryBuilderTest(BuilderTestCase):
     def test_SELECT(self):
         builder = SqlAlchemyQueryBuilder(self.session, model_scope=self.model_scope)
         query = builder.parse_and_build("""
-            select * from User where
+            select a, b from User where
                 not (last_name = 'Jacob' or
                     (first_name != 'Chris' and last_name != 'Lyon')) and
                 not is_active = 1
             """)
 
+        self.assertEqual(['a', 'b'], builder.fields)
+
         results = query.all()
-        for user in results:
-            print user.__dict__
+        # for user in results:
+        #     print user.__dict__
 
         self.assertEquals(4, len(results))

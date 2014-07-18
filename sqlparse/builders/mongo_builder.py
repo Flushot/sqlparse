@@ -103,9 +103,10 @@ class MongoQueryBuilder(QueryBuilder):
         self.class_names = [ self.model_class ]
 
         # fields
-        self.fields = self._get_fields_option(parse_tree).keys()
-        if self.fields:
-            filter_options['fields'] = self.fields
+        filter_fields = self._get_fields_option(parse_tree)
+        self.fields = filter_fields.keys()
+        if filter_fields:
+            filter_options['fields'] = filter_fields
 
         return self._get_filter_criteria(parse_tree), filter_options
 
@@ -151,6 +152,6 @@ class MongoQueryBuilder(QueryBuilder):
             if field == '*':
                 return {}
 
-            filter_fields[field] = 1
+            filter_fields[field.name] = 1
 
         return filter_fields
