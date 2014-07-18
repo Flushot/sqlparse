@@ -4,6 +4,7 @@ import logging
 import inspect
 
 import sqlalchemy
+from sqlalchemy.orm.session import Session
 
 import sqlparse
 from sqlparse import nodes
@@ -95,9 +96,13 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
     def __init__(self, session, model_scope=None):
         super(SqlAlchemyQueryBuilder, self).__init__()
 
-        self.session = session
-        # TODO: validate session
+        if session is None:
+            raise ValueError('session is required')
+        if not isinstance(session, Session):
+            raise ValueError('session must be a SqlAlchemy session object')
+
         # TODO: figure out if there's a way to do detached queries w/o depending on session (like hibernate)
+        self.session = session
 
         if model_scope is None:
             model_scope = globals()
