@@ -6,7 +6,6 @@ import inspect
 import sqlalchemy
 from sqlalchemy.orm.session import Session
 
-import sqlparse
 from sqlparse import nodes
 from sqlparse.visitors import IdentifierAndValueVisitor
 from .base import QueryBuilder
@@ -133,7 +132,7 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
             raise NotImplementedError('SqlAlchemy queries currently only support a single model class')
 
         class_name = class_names[0]
-        #print 'FROM: %s' % class_name
+        # print('FROM: {}', class_name)
 
         klass = self.model_scope.get(class_name)
         if klass is None:
@@ -145,7 +144,7 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
 
     def _get_projection(self, parse_tree):
         projection = IdentifierAndValueVisitor().visit(parse_tree.columns)
-        #print 'SELECT: %s' % projection
+        # print('SELECT: {}', projection)
         if not isinstance(projection, list):
             raise ValueError('SELECT must be a list')
 
@@ -159,5 +158,5 @@ class SqlAlchemyQueryBuilder(QueryBuilder):
 
     def _get_filter_criteria(self, model_class, parse_tree):
         filter_criteria =  SqlAlchemyQueryVisitor(model_class).visit(parse_tree.where[0])
-        print 'WHERE: %s' % filter_criteria
+        print('WHERE: {}', filter_criteria)
         return filter_criteria

@@ -1,10 +1,9 @@
 import itertools
 import logging
-import json
 
 import pymongo
 
-from .base import unittest, BuilderTestCase
+from .base import BuilderTestCase
 from sqlparse.builders import MongoQueryBuilder
 
 logger = logging.getLogger(__name__)
@@ -71,8 +70,8 @@ class MongoQueryBuilderTest(BuilderTestCase):
                                 { "last_name": "Jacob" },
                                 {
                                     "$and": [
-                                        { "first_name": { "$ne": "Chris" } },
-                                        { "last_name": { "$ne": "Lyon" } }
+                                        {"first_name": {"$ne": "Chris"}},
+                                        {"last_name": {"$ne": "Lyon"}}
                                     ]
                                 }
                             ]
@@ -81,7 +80,7 @@ class MongoQueryBuilderTest(BuilderTestCase):
                 },
                 {
                     "$nor": [
-                        { "is_active": 1 }
+                        {"is_active": 1}
                     ]
                 }
             ]
@@ -89,6 +88,6 @@ class MongoQueryBuilderTest(BuilderTestCase):
 
         results = self.collection.find(query, options)
         # for result in results:
-        #     print json.dumps(result)
+        #     print(json.dumps(result))
 
         self.assertEquals(4, results.count())

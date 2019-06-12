@@ -52,7 +52,7 @@ class ListValue(Value):
         self.frozen = False
 
     def __repr__(self):
-        return "'(%s)" % ' '.join(map(str, self.values))
+        return "'({})".format(' '.join(map(str, self.values)))
 
 
 class RangeValue(Value):
@@ -65,8 +65,7 @@ class RangeValue(Value):
         self.begin, self.end = tokens[0]
 
     def __repr__(self):
-        return "%s...%s" % (self.begin, self.end)
-
+        return "{}...{}".format(self.begin, self.end)
 
 
 class Identifier(ASTNode):
@@ -108,7 +107,6 @@ class Function(ASTNode):
         self.name = self.name.lower()
 
 
-
 class UnaryOperator(Function):
     """
     -x +x ~x
@@ -119,7 +117,7 @@ class UnaryOperator(Function):
         self.rhs = self.args
 
     def __repr__(self):
-        return '(%s %s)' % (self.name, self.args)
+        return '({} {})'.format(self.name, self.args)
 
 
 class BinaryOperator(Function):
@@ -130,13 +128,13 @@ class BinaryOperator(Function):
     def __init__(self, tokens):
         self.lhs, self.name, self.rhs = tokens[0]
         self.args = (self.lhs, self.rhs)
-        #super(BinaryOperator, self).__init__()
+        # super(BinaryOperator, self).__init__()
 
     def __repr__(self):
-        return '(%s %s %s)' % (self.name, self.lhs, self.rhs)
+        return '({} {} {})'.format(self.name, self.lhs, self.rhs)
 
 
 class Statement(ASTNode):
     def __init__(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)

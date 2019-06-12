@@ -45,7 +45,7 @@ class ASTVisitor(object):
     ...         '''Visit object literal.'''
     ...         for prop in node:
     ...             left, right = prop.left, prop.right
-    ...             print 'Property value: %s' % right.value
+    ...             print 'Property value: {}'.format(right.value)
     ...             # visit all children in turn
     ...             self.visit(prop)
     ...
@@ -60,7 +60,7 @@ class ASTVisitor(object):
     """
 
     def visit(self, node):
-        method = 'visit_%s' % node.__class__.__name__
+        method = 'visit_{}'.format(node.__class__.__name__)
         return getattr(self, method, self.generic_visit)(node)
 
     def generic_visit(self, node):

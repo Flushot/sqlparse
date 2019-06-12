@@ -43,7 +43,7 @@ WITH = CaselessLiteral('with')
 RECURSIVE = CaselessLiteral('recursive')
 
 PIVOT = CaselessLiteral('pivot')
-#UNPIVOT = CaselessLiteral('unpivot')
+# UNPIVOT = CaselessLiteral('unpivot')
 PIVOT_IN = CaselessLiteral('in')
 PIVOT_FOR = CaselessLiteral('for')
 
@@ -73,7 +73,7 @@ VAL_UNKNOWN = CaselessLiteral('unknown')
 # Operators (name is operators.FUNC_NAME)
 OP_EQUAL = Literal('=')
 OP_VAL_NULLSAFE_EQUAL = Literal('<=>')
-OP_NOTEQUAL = ( Literal('!=') | Literal('<>') )
+OP_NOTEQUAL = (Literal('!=') | Literal('<>'))
 OP_GT = Literal('>').setName('gt')
 OP_LT = Literal('<').setName('lt')
 OP_GTE = Literal('>=').setName('ge')
@@ -82,13 +82,13 @@ OP_IN = CaselessLiteral('in')  # sqlalchemy property: lhs.in_(rhs)
 OP_LIKE = CaselessLiteral('like')  # sqlalchemy property: lhs.like(rhs), lhs.ilike(rhs)
 OP_IS = CaselessLiteral('is')  # sqlalchemy or_(lhs == rhs, lhs == None)
 OP_BETWEEN = CaselessLiteral('between')  # sqlalchemy: between
-OP_BETWEEN_AND = Suppress( CaselessLiteral('and') )
+OP_BETWEEN_AND = Suppress(CaselessLiteral('and'))
 
 # Math
 # OP_ADD = Literal('+')
 # OP_SUB = Literal('-')
 # OP_MUL = Literal('*')
-# OP_DIV = ( Literal('/') | CaselessLiteral('div') )
+# OP_DIV = (Literal('/') | CaselessLiteral('div'))
 # OP_EXP = Literal('**')  # standard?
 # addOp = OP_ADD | OP_SUB
 # multOp = OP_MUL | OP_DIV
@@ -102,9 +102,9 @@ OP_BETWEEN_AND = Suppress( CaselessLiteral('and') )
 # BITOP_XOR = Literal('^')
 
 # Conjugates
-LOGOP_AND = ( CaselessLiteral('and') | CaselessLiteral('&&') )
-LOGOP_OR =  ( CaselessLiteral('or')  | CaselessLiteral('||') )
-LOGOP_NOT = ( CaselessLiteral('not') | CaselessLiteral('!')  )
+LOGOP_AND = (CaselessLiteral('and') | CaselessLiteral('&&'))
+LOGOP_OR = (CaselessLiteral('or') | CaselessLiteral('||'))
+LOGOP_NOT = (CaselessLiteral('not') | CaselessLiteral('!'))
 LOGOP_XOR = CaselessLiteral('xor')
 
 # SELECT Statement Operators
@@ -134,14 +134,14 @@ sign = PLUS | MINUS
 
 selectStmt = Forward()  # SELECT
 
-identifier = Word( alphas, alphanums + '_$' )('identifier')  # a, A1, a_1$
-#alias = ( Optional(AS) + identifier ).setName('alias')
+identifier = Word(alphas, alphanums + '_$')('identifier')  # a, A1, a_1$
+# alias = (Optional(AS) + identifier).setName('alias')
 
 # Projection
-columnName = delimitedList( identifier, DOT, combine=True ).setParseAction(Identifier)('column')  # TODO: x AS y, x y, x `y`, x 'y', `x`, 'x'
-columnNameList = Group( delimitedList( STAR | columnName ) ).setParseAction(ListValue)
-tableName = delimitedList( identifier, DOT, combine=True ).setParseAction(Identifier)('table')
-tableNameList = Group( delimitedList( tableName ) ).setParseAction(ListValue)
+columnName = delimitedList(identifier, DOT, combine=True).setParseAction(Identifier)('column')  # TODO: x AS y, x y, x `y`, x 'y', `x`, 'x'
+columnNameList = Group(delimitedList(STAR | columnName)).setParseAction(ListValue)
+tableName = delimitedList(identifier, DOT, combine=True).setParseAction(Identifier)('table')
+tableNameList = Group(delimitedList(tableName)).setParseAction(ListValue)
 
 whereExpr = Forward()  # WHERE
 
@@ -155,45 +155,54 @@ equalityOp = (
     OP_GT ^
     OP_GTE ^
     OP_LTE
-    )
-likeOp = (
-    ( Optional(LOGOP_NOT) + OP_LIKE )
-    )
+)
+likeOp = (Optional(LOGOP_NOT) + OP_LIKE)
+
 betweenOp = Optional(LOGOP_NOT) + OP_BETWEEN  # [ NOT ] BETWEEN
+
 stringValue = quotedString.setParseAction(StringValue)
+
 realNumber = (
     Combine(
         Optional(sign) + (
             # decimal present
-            ( ( Word(nums) + DOT + Optional(Word(nums)) | ( DOT + Word(nums) ) ) +
-                Optional( E + Optional(sign) + Word(nums) ) ) |
+            ((Word(nums) + DOT + Optional(Word(nums)) | (DOT + Word(nums))) +
+                Optional(E + Optional(sign) + Word(nums))) |
             # negative exp
-            ( Word(nums) + Optional( E + Optional(MINUS) + Word(nums) ) )
-            )
-        ).setParseAction(RealValue)
-    ).setName('real')  # .1, 1.2, 1.2e3, -1.2e+3, 1.2e-3
+            (Word(nums) + Optional(E + Optional(MINUS) + Word(nums)))
+        )
+    ).setParseAction(RealValue)
+).setName('real')  # .1, 1.2, 1.2e3, -1.2e+3, 1.2e-3
+
 intNumber = (
     Combine(
         Optional(sign) +
         Word(nums)
-        #Optional( E + Optional(PLUS) + Word(nums) )  # python int() doesn't grok this
-        ).setParseAction(IntegerValue)
-    ).setName('int')  # -1 0 1 23
+        # Optional(E + Optional(PLUS) + Word(nums))  # python int() doesn't grok this
+    ).setParseAction(IntegerValue)
+).setName('int')  # -1 0 1 23
+
 number = intNumber ^ realNumber
+
 atom = (
     number |
     stringValue('string')  # normalize quotes
-    )
-groupSubSelectStmt = Group( R_PAREN + selectStmt + R_PAREN )  # todo: subselect must have a LIMIT in this context
+)
+
+groupSubSelectStmt = Group(R_PAREN + selectStmt + R_PAREN)  # todo: subselect must have a LIMIT in this context
+
 columnRval = (
     atom('value') |
     columnName('column') |
     groupSubSelectStmt('query')
-    )
+)
+
 likePattern = (
     stringValue('value')
-    )
+)
+
 inOperand = Suppress(L_PAREN) + Group(delimitedList(columnRval))('value').setParseAction(ListValue) + Suppress(R_PAREN)
+
 # TODO: Functions: sum, avg, count, max, min, ifnull/isnull, if
 #            current_date, current_time, current_timestamp, current_user
 #            substring, regex, concat, group_concat
@@ -201,14 +210,18 @@ inOperand = Suppress(L_PAREN) + Group(delimitedList(columnRval))('value').setPar
 whereCond = Forward()
 whereCond << (
     Group(LOGOP_NOT + whereCond)('op').setParseAction(UnaryOperator) |
-    Group( columnName('column') + equalityOp('op') + columnRval ).setParseAction(BinaryOperator) |  # x = y, x != y, etc.
-    Group( columnName('column') + likeOp('op') + likePattern ).setParseAction(BinaryOperator) |
-    Group( columnName('column') + betweenOp('op') + Group( columnRval + OP_BETWEEN_AND + columnRval )('range').setParseAction(RangeValue) ).setParseAction(BinaryOperator) |  # x between y and z, x not between y and z
-    Group( columnName('column') + Group( OP_IS + Optional(LOGOP_NOT) )('op') + ( VAL_NULL | VAL_TRUE | VAL_FALSE | VAL_UNKNOWN )('value') ) |  # x is null, x is not null
-    Group( columnName('column') + OP_IN('op') + inOperand ).setParseAction(BinaryOperator) |
-    #Group( columnName('column') + Combine( LOGOP_NOT + OP_IN )('op') + inOperand ) |
-    ( L_PAREN + whereExpr('expr') + R_PAREN )
-    )
+    Group(columnName('column') + equalityOp('op') + columnRval).setParseAction(BinaryOperator) |  # x = y, x != y, etc.
+    Group(columnName('column') + likeOp('op') + likePattern).setParseAction(BinaryOperator) |
+    Group(columnName('column') + betweenOp('op') + Group(columnRval + OP_BETWEEN_AND + columnRval)('range').setParseAction(RangeValue)).setParseAction(BinaryOperator) |  # x between y and z, x not between y and z
+    Group(columnName('column') + Group(
+        OP_IS +
+        Optional(LOGOP_NOT))('op') +
+        (VAL_NULL | VAL_TRUE | VAL_FALSE | VAL_UNKNOWN)('value')
+    ) |  # x is null, x is not null
+    Group(columnName('column') + OP_IN('op') + inOperand).setParseAction(BinaryOperator) |
+    # Group( columnName('column') + Combine( LOGOP_NOT + OP_IN )('op') + inOperand ) |
+    (L_PAREN + whereExpr('expr') + R_PAREN)
+)
 
 
 # logOp = operatorPrecedence(
@@ -219,7 +232,7 @@ whereCond << (
 #     ])
 whereExpr << (
     whereCond ^
-    #Group( LOGOP_NOT('op') + whereCond )('expr').setParseAction(UnaryOperator) ^
+    # Group(LOGOP_NOT('op') + whereCond )('expr').setParseAction(UnaryOperator) ^
     Group(
         whereCond +
         OneOrMore(
@@ -228,12 +241,12 @@ whereExpr << (
             LOGOP_OR('op') + whereExpr('expr')
         )
     ).setParseAction(BinaryOperator)
-    )
+)
 
 columnProjection = (
-    Optional( SELECT_DISTINCT | SELECT_ALL ).setResultsName('options') +
+    Optional(SELECT_DISTINCT | SELECT_ALL).setResultsName('options') +
     columnNameList('columns')
-    )
+)
 
 fromClause = Suppress(FROM) + tableNameList('tables')
 
@@ -245,10 +258,11 @@ pivotClause = Optional(
         PIVOT + L_PAREN + Group(columnNameList) +
         PIVOT_FOR + columnName +
         PIVOT_IN + Group(columnNameList) +
-        R_PAREN )
-    )('pivot')
+        R_PAREN
+    )
+)('pivot')
 
-whereClause = Optional( Suppress(WHERE) + whereExpr )('where')
+whereClause = Optional(Suppress(WHERE) + whereExpr)('where')
 
 # TODO: GROUP BY
 # TODO: HAVING
@@ -256,30 +270,30 @@ whereClause = Optional( Suppress(WHERE) + whereExpr )('where')
 
 # ORDER BY x, y ASC, d DESC, ...
 orderDirection = ORDER_ASC | ORDER_DESC
-orderByColumnList = Group( delimitedList( columnName('column') + Optional(orderDirection)('direction') ) )
-orderByClause = Optional( Suppress(ORDER_BY) + orderByColumnList('order') )  # todo: asc, desc
+orderByColumnList = Group(delimitedList(columnName('column') + Optional(orderDirection)('direction')))
+orderByClause = Optional(Suppress(ORDER_BY) + orderByColumnList('order'))  # todo: asc, desc
 
 selectStmt << (
     Suppress(SELECT) +
     columnProjection +
     Optional(
         fromClause +
-        #pivotClause +
+        # pivotClause +
         whereClause
-        )
-    #orderByClause
     )
+    # orderByClause
+)
 
 # UNION ( ALL )
-unionOp = Combine( SELECTOP_UNION + Optional(SELECTOP_UNION_ALL) )
+unionOp = Combine(SELECTOP_UNION + Optional(SELECTOP_UNION_ALL))
 
 # SELECT ... ( UNION | INTERSECT | EXCEPT ) SELECT ...
-selectStmts = selectStmt + ZeroOrMore( ( unionOp | SELECTOP_INTERSECT | SELECTOP_EXCEPT ) + selectStmt )
+selectStmts = selectStmt + ZeroOrMore((unionOp | SELECTOP_INTERSECT | SELECTOP_EXCEPT) + selectStmt)
 
-### Start symbol
+# Start symbol
 sqlQuery = selectStmts + StringEnd()
 
 # Ignore comments
-commentStart = Suppress( oneOf('-- #') )
+commentStart = Suppress(oneOf('-- #'))
 comment = commentStart + restOfLine
 sqlQuery.ignore(comment)

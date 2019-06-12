@@ -1,4 +1,3 @@
-import inspect
 import logging
 from abc import ABCMeta, abstractmethod
 
@@ -9,10 +8,8 @@ logger = logging.getLogger(__name__)
 
 
 class QueryBuilder(object):
-    """
-
-    """
-    _primitives = (int, float, str, unicode, bool)
+    __metaclass__ = ABCMeta
+    _primitives = (int, float, str, bool)
 
     def __init__(self):
         self.model_class = None  # deprecated
@@ -26,7 +23,7 @@ class QueryBuilder(object):
     def _parse(self, query_string):
         try:
             ast = sqlparse.parse_string(query_string)
-        except pyparsing.ParseException, err:
+        except pyparsing.ParseException as err:
             msg = [
                 'Parse Error: %s' % err,
                 query_string,

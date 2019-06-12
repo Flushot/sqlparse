@@ -1,10 +1,6 @@
 import os
-import sys
-import collections
-try:
-    import unittest2 as unittest  # 2.7
-except ImportError:
-    import unittest  # <2.7
+import unittest
+
 from pyparsing import ParseException
 import sqlparse
 
@@ -17,44 +13,41 @@ class ParserTestCase(unittest.TestCase):
     # Print results XML to console?
     PRINT_PARSE_RESULTS = bool(os.environ.get('PRINT_PARSE_RESULTS', False))
 
-    def assertParses(self, inputStr, expectError=False):
+    def assertParses(self, input_str: str, expect_error: bool = False):
         """
-        parses :inputStr: and assets the parse succeeded
+        parses :input_str: and assets the parse succeeded
         (or failed if :expectError: is True)
 
         returns ParseResults with parse tree
 
         parameters
         ----------
-        inputStr : str
+        input_str : str
             query string to parse
-        expectError : bool
+        expect_error : bool
             is this an intentionally malformed inputStr?
             if so, suppresses the ParseException
         """
-        if isinstance(inputStr, list):
-            return map(lambda i: self.assertParses(i, expectError=expectError), inputStr)
+        if isinstance(input_str, list):
+            return map(lambda i: self.assertParses(i, expect_error=expect_error), input_str)
 
         try:
-            if self.PRINT_PARSE_RESULTS and not expectError:
-                print
-                print inputStr
+            if self.PRINT_PARSE_RESULTS and not expect_error:
+                print("\n{}".format(input_str))
 
-            tokens = sqlparse.parse_string(inputStr)
-            if self.PRINT_PARSE_RESULTS and not expectError:
-                print tokens.asXML('query')
+            tokens = sqlparse.parse_string(input_str)
+            if self.PRINT_PARSE_RESULTS and not expect_error:
+                print(tokens.asXML('query'))
                 #print tokens.where.dump()
 
             #print tokens.where.dump()
 
-            self.assertFalse(expectError, inputStr) # parsed without error = pass
+            self.assertFalse(expect_error, input_str) # parsed without error = pass
             return tokens
 
-        except ParseException, err:
-            if self.PRINT_PARSE_RESULTS and not expectError:
-                #print '%s' % err.line
-                print '-' * (err.col - 1) + '^'
-                print 'ERROR: %s' % err
-            self.assertTrue(expectError, '%s, parsing "%s"' % (err, inputStr))
-
-
+        except ParseException as err:
+            if self.PRINT_PARSE_RESULTS and not expect_error:
+                # print(err.line)
+                print('-' * (err.col - 1) + '^')
+                print('ERROR: {}'.format(err))
+            self.assertTrue(expect_error, '{}, parsing "{}"'.format(err, input_str))

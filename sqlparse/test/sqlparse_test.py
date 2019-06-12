@@ -1,5 +1,6 @@
 from .base import ParserTestCase, unittest
 
+
 class TestSqlQueryGrammar(ParserTestCase):
     """
     Test cases for grammar parsing
@@ -38,7 +39,7 @@ class TestSqlQueryGrammar(ParserTestCase):
 
             'select * from a .b'
 
-            ], expectError=True)
+            ], expect_error=True)
 
     @unittest.skip('unimplemented')
     def test_SELECT_without_FROM(self):
@@ -165,11 +166,10 @@ class TestSqlQueryGrammar(ParserTestCase):
             ])
 
 if __name__ == '__main__':
-    #import operator
-    #import sqlalchemy
+    # import operator
+    # import sqlalchemy
 
     unittest.main()
 
     # TODO: semantic analysis
     # TODO: dfs walk tokens.where and construct a sqlalchemy Query
-

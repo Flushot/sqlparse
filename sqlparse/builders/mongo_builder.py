@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import logging
-import json
 
 import sqlparse
 from sqlparse import nodes
@@ -50,8 +49,8 @@ class MongoQueryVisitor(IdentifierAndValueVisitor):
 
         if node.name == '=':
             # Mongo treats equality struct different from other binary operators
-            if isinstance(lhs_node, basestring):
-                return { lhs_node: rhs_node }
+            if isinstance(lhs_node, str):
+                return {lhs_node: rhs_node}
             else:
                 raise ValueError('lhs is an expression: %s' % lhs_node)
 
@@ -59,10 +58,10 @@ class MongoQueryVisitor(IdentifierAndValueVisitor):
             # Mongo lacks an XOR operator
             return {
                 '$and': [
-                    { '$or': [ lhs_node, rhs_node ] },
-                    { '$and': [
-                        { '$nor': [ lhs_node ] },
-                        { '$nor': [ rhs_node ] }
+                    {'$or': [lhs_node, rhs_node]},
+                    {'$and': [
+                        {'$nor': [lhs_node]},
+                        {'$nor': [rhs_node]}
                     ]}
                 ]}
 
@@ -70,8 +69,8 @@ class MongoQueryVisitor(IdentifierAndValueVisitor):
             # Mongo lacks a BETWEEN operator
             return {
                 '$and': [
-                    { lhs_node: { '$gte': rhs_node.begin } },
-                    { lhs_node: { '$lte': rhs_node.end } }
+                    {lhs_node: {'$gte': rhs_node.begin}},
+                    {lhs_node: {'$lte': rhs_node.end}}
                 ]}
 
         # Standard binary operator
@@ -82,10 +81,10 @@ class MongoQueryVisitor(IdentifierAndValueVisitor):
 
             # AND and OR have list operands
             if op_name in ('$and', '$or'):
-                return { op_name: [ lhs_node, rhs_node ] }
+                return {op_name: [lhs_node, rhs_node]}
             # Everything else contains a { prop: expr } operand
-            elif isinstance(lhs_node, basestring):
-                return { lhs_node: { op_name: rhs_node } }
+            elif isinstance(lhs_node, str):
+                return {lhs_node: {op_name: rhs_node}}
             else:
                 raise ValueError('lhs is an expression: %s' % lhs_node)
 
@@ -100,11 +99,11 @@ class MongoQueryBuilder(QueryBuilder):
 
         # collections
         self.model_class = self._get_collection_name(parse_tree)
-        self.class_names = [ self.model_class ]
+        self.class_names = [self.model_class]
 
         # fields
         filter_fields = self._get_fields_option(parse_tree)
-        self.fields = filter_fields.keys()
+        self.fields = list(filter_fields.keys())
         if filter_fields:
             filter_options['fields'] = filter_fields
 
@@ -115,22 +114,22 @@ class MongoQueryBuilder(QueryBuilder):
         Filter criteria specified in WHERE
         """
         filter_criteria =  MongoQueryVisitor().visit(parse_tree.where[0])
-        #print 'WHERE: %s' % json.dumps(filter_criteria, indent=4)
+        # print('WHERE: {}', json.dumps(filter_criteria, indent=4))
         return filter_criteria
 
     def _get_collection_name(self, parse_tree):
         """
         Collections specified in FROM
         """
-        collections = [unicode(table.name) for table in parse_tree.tables.values]
+        collections = [str(table.name) for table in parse_tree.tables.values]
         if len(collections) == 0:
             raise ValueError('Collection name required in FROM clause')
 
         collection = collections[0]
-        #print 'FROM: %s' % collection
+        # print('FROM: {}', collection)
 
         # TODO: parse this as an Identifier instead of a str
-        if not isinstance(collection, basestring):
+        if not isinstance(collection, str):
             raise ValueError('collection name must be a string')
 
         if len(collections) > 1:
@@ -143,7 +142,7 @@ class MongoQueryBuilder(QueryBuilder):
         Fields specified in SELECT
         """
         fields = IdentifierAndValueVisitor().visit(parse_tree.columns)
-        #print 'SELECT: %s' % fields
+        # print('SELECT: {}', fields)
         if not isinstance(fields, list):
             raise ValueError('SELECT must be a list')
 

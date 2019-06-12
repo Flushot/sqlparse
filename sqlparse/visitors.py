@@ -1,15 +1,15 @@
-from nodevisitor import ASTVisitor
+from .nodevisitor import ASTVisitor
 
 
 class IdentifierVisitor(ASTVisitor):
     def visit_Identifier(self, node):
         # TODO: parse . notation
-        return unicode(node.name)
+        return str(node.name)
 
 
 class ValueVisitor(ASTVisitor):
     def visit_StringValue(self, node):
-        return unicode(node.value)
+        return str(node.value)
 
     def visit_IntegerValue(self, node):
         return int(node.value)
