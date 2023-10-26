@@ -73,7 +73,7 @@ class Identifier(ASTNode):
 
     """
     def __init__(self, tokens):
-        self.name = tokens[0][0]
+        self.name = tokens[0]
 
 
 class ModelIdentifier(Identifier):
