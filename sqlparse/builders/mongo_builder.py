@@ -139,7 +139,7 @@ class MongoQueryBuilder(QueryBuilder):
         if not isinstance(fields, list):
             raise ValueError("SELECT must be a list")
 
-        filter_fields = {}
+        filter_fields = {"_id": 0}  # do not return _id field by default
         for field in fields:
             if field == "*":
                 return {}
