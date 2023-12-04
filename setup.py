@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from setuptools import setup
+from setuptools import setup, find_packages
 
 import sqlparse
 
@@ -15,6 +15,8 @@ setup(
 
     url='https://github.com/Flushot/sqlparse',
 
+    packages=find_packages(include=["sqlparse", "sqlparse.*"]),
+    
     license='Apache License 2.0',
     classifiers=[
         'Intended Audience :: Developers'
